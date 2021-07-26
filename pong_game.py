@@ -78,7 +78,6 @@ class Player(pg.sprite.Sprite):
         return pg.Rect(*self.pos, *self.size)
 
     def update(self, *args, **kwargs) -> None:
-        # old_pos = self.pos
         self.pos = self.pos + self.vel
         self.vel *= self.friction
 
@@ -198,7 +197,7 @@ class Game(Scene):
         bl_img.fill((255, 255, 255))
         self.player = Player(pg.Vector2(10, 128), pg.Rect(0, 0, 10, 50), pl_img, pg.Rect(0, 0, 512, 256), 10)
         self.bot = Player(pg.Vector2(502, 128), pg.Rect(0, 0, 10, 50), pl_img, pg.Rect(0, 0, 512, 256), 10)
-        self.ball = Ball(pg.Vector2(256, 128), pg.Vector2(-5, -5), pg.Rect(0, 0, 10, 10), bl_img, pg.Rect(0, 0, 512, 256))
+        self.ball = Ball(pg.Vector2(256, 128), pg.Vector2(5, 5), pg.Rect(0, 0, 10, 10), bl_img, pg.Rect(0, 0, 512, 256))
         self.players_group = pg.sprite.Group(self.player, self.bot)
         self.balls_group = pg.sprite.Group(self.ball)
 
