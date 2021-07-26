@@ -78,7 +78,7 @@ class Player(pg.sprite.Sprite):
         return pg.Rect(*self.pos, *self.size)
 
     def update(self, *args, **kwargs) -> None:
-        old_pos = self.pos
+        # old_pos = self.pos
         self.pos = self.pos + self.vel
         self.vel *= self.friction
 
@@ -190,8 +190,7 @@ class Scene:
 
 
 class Game(Scene):
-
-    def __init__(self, app):
+    def __init__(self, app: App):
         super(Game, self).__init__(app)
         pl_img = pg.Surface((10, 50))
         pl_img.fill((255, 255, 255))
@@ -230,7 +229,13 @@ class Game(Scene):
 
 
 class Menu(Scene):
-    pass
+
+    def __init__(self, app):
+        super(Menu, self).__init__(app)
+
+        def click():
+            self.app.scene = self.app.game
+#       self.start_button = Button(self.app.screen, (100, 100), ["start game"], SysFont, action=click)
 
 
 class Settings(Scene):
