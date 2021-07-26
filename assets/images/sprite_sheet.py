@@ -20,4 +20,8 @@ class SpriteSheet:
 
 
 def load_sprite_sheet(sheet: str, info: str):
-    return SpriteSheet(pg.image.load(sheet), json.load(open(info)))
+    return SpriteSheet(load_image(sheet), json.load(open(info)))
+
+
+def load_image(name: str):
+    return pg.image.load(os.path.abspath("") + "/asserts/graphics/" + name)
