@@ -194,4 +194,3 @@ def case(_: Any) -> NoReturn:
 
 
 __all__ = ["switch", "case", "Switcher"]
-
