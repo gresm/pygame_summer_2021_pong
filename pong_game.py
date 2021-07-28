@@ -1,7 +1,14 @@
+from typing import Callable, List
 import pygame as pg
 from pygame.font import SysFont
 from assets.source.button import Button
 from assets.source.switch_case import switch, case
+from assets.images import sprite_sheet as sp_sh
+import random as rd
+import math as mh
+
+
+pg.display.init()
 
 
 def multiply_vec(vec1: pg.Vector2, vec2: pg.Vector2):
@@ -68,6 +75,7 @@ class Player(pg.sprite.Sprite):
         self.control_delay = control_delay
         self.last_press = 0
         self.move_buffer = 0
+        self.ball_bounce = pg.Vector2(-1, 1)
 
     @property
     def hit_box(self):
@@ -121,7 +129,8 @@ class Ball(pg.sprite.Sprite):
     horizontal = pg.Vector2(-1, 1)
     vertical = pg.Vector2(1, -1)
 
-    def __init__(self, pos: pg.Vector2, vel: pg.Vector2, hit_box: pg.Rect, image: pg.Surface, walls: pg.Rect):
+    def __init__(self, pos: pg.Vector2, vel: pg.Vector2, hit_box: pg.Rect, image: pg.Surface, walls: pg.Rect,
+                 bonce_interval: int):
         super().__init__()
         self.pos = pos
         self.vel = vel
@@ -130,6 +139,10 @@ class Ball(pg.sprite.Sprite):
         self.image = image
         self.size = self.image.get_size()
         self.walls = walls
+        self.bounce_interval = bonce_interval
+        self.bounce_elapse = 0
+        self.pads_bounce_interval = bonce_interval
+        self.pads_bounce_elapse = 0
 
     @property
     def hit_box(self):
@@ -144,29 +157,67 @@ class Ball(pg.sprite.Sprite):
         self.bounce()
         self.clamp_pos()
 
+        if self.bounce_elapse > 0:
+            self.bounce_elapse -= 1
+
+        if self.pads_bounce_elapse > 0:
+            self.pads_bounce_elapse -= 1
+
+        if "pads" in kwargs:
+            pads: pg.sprite.Group = kwargs["pads"]
+            pad: Player
+            for pad in pads:
+                if self.hit_box.colliderect(pad.hit_box) and self.pads_bounce_elapse == 0:
+                    si_x, si_y = multiply_vec(self.vel, pad.ball_bounce)
+                    diff = pg.Vector2(self.hit_box.center) - pg.Vector2(pad.hit_box.center)
+                    v_x, v_y = diff / diff.length() * 10
+                    self.vel = pg.Vector2(mh.copysign(v_x, si_x), mh.copysign(v_y, si_y))
+                    self.pads_bounce_elapse += self.pads_bounce_interval
+
+        if "goals" in kwargs:
+            goals: List[BallGoal] = kwargs["goals"]
+            for goal in goals:
+                goal.collide(self.hit_box)
+
     def bounce(self):
+        if self.bounce_elapse > 0:
+            return
         if self.hit_box.left < self.walls.left:
             self.vel = multiply_vec(self.vel, self.horizontal)
             self.pos += self.vel
+            self.bounce_elapse += self.bounce_interval
         if self.hit_box.right > self.walls.right:
             self.vel = multiply_vec(self.vel, self.horizontal)
             self.pos += self.vel
+            self.bounce_elapse += self.bounce_interval
         if self.hit_box.top < self.walls.top:
             self.vel = multiply_vec(self.vel, self.vertical)
             self.pos += self.vel
+            self.bounce_elapse += self.bounce_interval
         if self.hit_box.bottom > self.walls.bottom:
             self.vel = multiply_vec(self.vel, self.vertical)
             self.pos += self.vel
+            self.bounce_elapse += self.bounce_interval
 
     def clamp_pos(self):
         if self.hit_box.left < self.walls.left:
             self.pos.x = self.walls.left + 21
         if self.hit_box.right > self.walls.right:
-            self.pos.x = self.walls.right + self.hit_box.w - 21
+            self.pos.x = self.walls.right + self.hit_box.w
         if self.hit_box.top < self.walls.top:
-            self.pos.y = self.walls.top + self.vel.y + 21
+            self.pos.y = self.walls.top + self.vel.y
         if self.hit_box.bottom > self.walls.bottom:
-            self.pos.y = self.walls.bottom + self.hit_box.h - 21
+            self.pos.y = self.walls.bottom + self.hit_box.h
+
+
+class BallGoal:
+    def __init__(self, rect: pg.Rect, on_collide: Callable):
+        self.rect = rect
+        self.on_collide = on_collide
+
+    def collide(self, other: pg.Rect):
+        if self.rect.colliderect(other):
+            self.on_collide()
 
 
 class Scene:
@@ -191,31 +242,72 @@ class Scene:
 class Game(Scene):
     def __init__(self, app: App):
         super(Game, self).__init__(app)
-        pl_img = pg.Surface((10, 50))
-        pl_img.fill((255, 255, 255))
-        bl_img = pg.Surface((10, 10))
-        bl_img.fill((255, 255, 255))
-        self.player = Player(pg.Vector2(10, 128), pg.Rect(0, 0, 10, 50), pl_img, pg.Rect(0, 0, 512, 256), 10)
-        self.bot = Player(pg.Vector2(502, 128), pg.Rect(0, 0, 10, 50), pl_img, pg.Rect(0, 0, 512, 256), 10)
-        self.ball = Ball(pg.Vector2(256, 128), pg.Vector2(5, 5), pg.Rect(0, 0, 10, 10), bl_img, pg.Rect(0, 0, 512, 256))
+        self.pl_img = pg.Surface((10, 50))
+        self.pl_img.fill((255, 255, 255))
+        self.bl_img = pg.Surface((10, 10))
+        self.bl_img.fill((255, 255, 255))
+        self.bounds = pg.Rect(0, 0, 512, 256)
+        self.player = Player(pg.Vector2(30, 128), pg.Rect(0, 0, 10, 50), self.pl_img, self.bounds, 10)
+        self.bot = Player(pg.Vector2(482, 128), pg.Rect(0, 0, 10, 50), self.pl_img, self.bounds, 10)
+        self.ball: Ball = ...
+        self.max_bounds = pg.Rect(self.bounds.x - 20, self.bounds.y - 20, self.bounds.width + 20,
+                                  self.bounds.height + 20)
         self.players_group = pg.sprite.Group(self.player, self.bot)
-        self.balls_group = pg.sprite.Group(self.ball)
+        self.balls_group = pg.sprite.Group()
+        self.left_goal = BallGoal(pg.Rect(10, 0, 10, 256), self.left_collide)
+        self.right_goal = BallGoal(pg.Rect(502, 0, 10, 256), self.right_collide)
+        self.goals = [self.left_goal, self.right_goal]
+        self.player_score = 0
+        self.bot_score = 0
+        self.scoring_delay = 10
+        self.scoring_elapse = 0
+        self.respawn_ball()
+        self.sheet = sp_sh.load_sprite_sheet("sprite_sheet.png", "sprite_sheet.json", 6)
 
     def draw(self):
         screen = pg.Surface((512, 256))
         self.players_group.draw(screen)
         self.balls_group.draw(screen)
+        self.draw_text(screen)
         return screen
 
+    def draw_text(self, surface: pg.Surface):
+        pl_score_len = len(str(self.player_score)) * self.sheet.scale * 4
+        bot_score_len = len(str(self.bot_score)) * self.sheet.scale * 4
+        start_x = 256 - pl_score_len - 30
+        for letter in str(self.player_score):
+            surface.blit(self.sheet.get(letter), (start_x, 30))
+            start_x += self.sheet.scale * 5
+
+    def respawn_ball(self):
+        if isinstance(self.ball, Ball):
+            self.ball.kill()
+
+        ball_vec = pg.Vector2(rd.random() * 20 - 10, rd.random() * 20 - 10)
+        ball_vec_l = ball_vec.length()
+        if ball_vec_l:
+            ball_vec = ball_vec / ball_vec_l * 10
+        else:
+            ball_vec = pg.Vector2(8, 9)
+
+        self.ball = Ball(pg.Vector2(256, 128), ball_vec, pg.Rect(0, 0, 10, 10), self.bl_img, self.bounds,
+                         10)
+        self.ball.add(self.balls_group)
+
     def update(self):
+        if not self.max_bounds.contains(self.ball.hit_box):
+            self.respawn_ball()
         self.players_group.update()
-        self.balls_group.update()
+        self.balls_group.update(pads=self.players_group, goals=self.goals)
 
         # bot control
         if self.bot.hit_box.centery > self.ball.hit_box.centery:
             self.bot.control(1)
         if self.bot.hit_box.centery < self.ball.hit_box.centery:
             self.bot.control(2)
+
+        if self.scoring_elapse > 0:
+            self.scoring_elapse -= 1
 
     def handle_input(self, k_id: int):
         with switch(k_id):
@@ -225,6 +317,18 @@ class Game(Scene):
             # noinspection PyCallingNonCallable
             if case(pg.K_s):
                 self.player.control(2)
+
+    def left_collide(self):
+        if self.scoring_elapse:
+            return
+        self.bot_score += 1
+        self.scoring_elapse += self.scoring_delay
+
+    def right_collide(self):
+        if self.scoring_elapse:
+            return
+        self.player_score += 1
+        self.scoring_elapse += self.scoring_delay
 
 
 class Menu(Scene):
