@@ -171,6 +171,8 @@ class Ball(pg.sprite.Sprite):
                     si_x, si_y = multiply_vec(self.vel, pad.ball_bounce)
                     diff = pg.Vector2(self.hit_box.center) - pg.Vector2(pad.hit_box.center)
                     v_x, v_y = diff / diff.length() * 10
+                    if v_x == 0:
+                        v_x = 1
                     self.vel = pg.Vector2(mh.copysign(v_x, si_x), mh.copysign(v_y, si_y))
                     self.pads_bounce_elapse += self.pads_bounce_interval
 
@@ -285,7 +287,7 @@ class Game(Scene):
 
         ball_vec = pg.Vector2(rd.random() * 20 - 10, rd.random() * 20 - 10)
         ball_vec_l = ball_vec.length()
-        if ball_vec_l:
+        if ball_vec_l and ball_vec.x:
             ball_vec = ball_vec / ball_vec_l * 10
         else:
             ball_vec = pg.Vector2(8, 9)
