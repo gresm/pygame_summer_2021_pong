@@ -28,7 +28,7 @@ class Button:
         self.position = Vector2(position)
         if texts is not None:
             if texts_font is None:
-                texts_font = SysFont(get_default_font(), 20)
+                texts_font = [SysFont(get_default_font(), 20)]
             if texts_color is None:
                 texts_color = p.color.Color(255, 255, 255)
             for i in range(self.click_range.stop):
@@ -46,6 +46,7 @@ class Button:
             for i in range(self.click_range.stop):
                 # noinspection PyUnboundLocalVariable
                 self.rect.append(p.Rect(self.position.x, self.position.y, size[i][0], size[i][1]))
+            print(self.rect)
         elif imgs is not None:
             if isinstance(imgs[0], str):
                 for i in range(self.click_range.stop):
@@ -90,5 +91,5 @@ class Button:
         cursor_pos = list(cursor_pos)
         cursor_pos[0] -= self.position.x
         cursor_pos[1] -= self.position.y
-        if cursor_pos[0] in range(self.rect[self.swap].height) and cursor_pos[1] in range(self.rect[self.swap].width):
+        if 0 < cursor_pos[0] < self.rect[self.swap].height and 0 < cursor_pos[1] < self.rect[self.swap].width:
             self.click()

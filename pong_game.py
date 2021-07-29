@@ -1,6 +1,5 @@
 from typing import Callable, List, Optional
 import pygame as pg
-from pygame.mouse import get_pos
 
 from assets.source.button import Button
 from assets.source.switch_case import switch, case
@@ -51,6 +50,11 @@ class App:
         self._scene = value
         self.update_screen()
 
+    @property
+    def scene_scale(self):
+        return self.scene.settings["scale"][0] / self.scene.settings["size"][0], self.scene.settings["scale"][1] /\
+               self.scene.settings["size"][1]
+
     def update_screen(self):
         pg.display.set_mode(self.scene.settings["scale"])
         pg.display.set_caption(self.scene.settings["title"])
@@ -79,7 +83,8 @@ class App:
             if event.type == pg.QUIT:
                 self.done = True
                 break
-            self.scene.handle_event(event)
+            if "events_filter" not in self.scene.settings or event.type in self.scene.settings["events_filter"]:
+                self.scene.handle_event(event)
 
     def handle_input(self):
         keys_pressed = pg.key.get_pressed()
@@ -87,10 +92,13 @@ class App:
             if keys_pressed[keycode]:
                 self.scene.handle_input(keycode)
 
+    def get_mouse_pos(self):
+        return pg.mouse.get_pos()[0] // self.scene_scale[0], pg.mouse.get_pos()[1] // self.scene_scale[1]
+
 
 class Player(pg.sprite.Sprite):
     friction = 0.9
-    up_force = pg.Vectqor2(y=-10)
+    up_force = pg.Vector2(y=-10)
     down_force = pg.Vector2(y=10)
 
     def __init__(self, pos: pg.Vector2, hit_box: pg.Rect, image: pg.Surface, walls: pg.Rect, control_delay: int):
@@ -389,7 +397,8 @@ class Game(Scene):
 
 
 class Menu(Scene):
-    settings = {"size": (512, 256), "scale": (1024, 512), "title": "Pong Menu", "icon": None}
+    settings = {"size": (512, 256), "scale": (1024, 512), "title": "Pong Menu", "icon": None,
+                "events_filter": {pg.MOUSEBUTTONDOWN}}
 
     def __init__(self, app):
         super(Menu, self).__init__(app)
@@ -398,22 +407,13 @@ class Menu(Scene):
             self.app.scene = self.app.game
 
         self.screen = pg.Surface(self.settings["size"])
-        self.start_button = Button(
-            self.screen,
-            position=(240, 100),
-            texts=["start game"],
-            texts_bg_color=[(255, 255, 255)],
-            action=click
-        )
 
     def draw(self) -> pg.Surface:
-        self.start_button.render()
+        self.screen.fill((0, 0, 0))
         return self.screen
 
     def handle_event(self, event):
-        if event.type == pg.MOUSEBUTTONDOWN:
-            print(get_pos())
-            self.start_button.check_click(get_pos())
+        pass
 
 
 class Settings(Scene):
