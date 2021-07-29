@@ -1,14 +1,26 @@
-from typing import Callable, List
+from typing import Callable, List, Optional
 import pygame as pg
-from pygame.font import SysFont
+from pygame.mouse import get_pos
+
 from assets.source.button import Button
 from assets.source.switch_case import switch, case
 from assets.images import sprite_sheet as sp_sh
 import random as rd
 import math as mh
-
+import logging
 
 pg.display.init()
+
+logger = logging.getLogger(__name__)
+
+handler = logging.StreamHandler()
+logger.addHandler(handler)
+
+handler = logging.FileHandler(filename="pong.long.log")
+logger.addHandler(handler)
+
+handler = logging.FileHandler(filename="pong.log", mode="w")
+logger.addHandler(handler)
 
 
 def multiply_vec(vec1: pg.Vector2, vec2: pg.Vector2):
@@ -28,7 +40,7 @@ class App:
         self.screen: pg.Surface = ...
         self.done = False
         self.clock = pg.time.Clock()
-        self.scene = self.game
+        self.scene = self.menu
 
     @property
     def scene(self):
@@ -66,6 +78,8 @@ class App:
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 self.done = True
+                break
+            self.scene.handle_event(event)
 
     def handle_input(self):
         keys_pressed = pg.key.get_pressed()
@@ -76,13 +90,13 @@ class App:
 
 class Player(pg.sprite.Sprite):
     friction = 0.9
-    up_force = pg.Vector2(0, -10)
-    down_force = pg.Vector2(0, 10)
+    up_force = pg.Vectqor2(y=-10)
+    down_force = pg.Vector2(y=10)
 
     def __init__(self, pos: pg.Vector2, hit_box: pg.Rect, image: pg.Surface, walls: pg.Rect, control_delay: int):
         super().__init__()
         self.pos = pos
-        self.vel = pg.Vector2(0, 0)
+        self.vel = pg.Vector2()
         self._hit_box = hit_box
         self.hit_box_offset = pg.Vector2(hit_box.x, hit_box.y)
         self.image = image
@@ -102,7 +116,7 @@ class Player(pg.sprite.Sprite):
         return pg.Rect(*self.pos, *self.size)
 
     def update(self, *args, **kwargs) -> None:
-        self.pos = self.pos + self.vel
+        self.pos += self.vel
         self.vel *= self.friction
 
         self.clamp_pos()
@@ -145,7 +159,8 @@ class Ball(pg.sprite.Sprite):
     horizontal = pg.Vector2(-1, 1)
     vertical = pg.Vector2(1, -1)
 
-    def __init__(self, pos: pg.Vector2, vel: pg.Vector2, hit_box: pg.Rect, image: pg.Surface, walls: pg.Rect,
+    def __init__(self, pos: pg.Vector2, vel: pg.Vector2, hit_box: pg.Rect, image: pg.Surface,
+                 walls: pg.Rect,
                  bonce_interval: int):
         super().__init__()
         self.pos = pos
@@ -241,6 +256,7 @@ class BallGoal:
 class Scene:
     app = None
     settings = {"size": (0, 0), "scale": (0, 0), "title": "", "icon": None}
+    settings["icon"]: Optional[pg.Surface]
 
     def __init__(self, app):
         self.app = self.app or app
@@ -254,7 +270,7 @@ class Scene:
     def handle_input(self, k_id: int):
         pass
 
-    def handle_event(self):
+    def handle_event(self, event):
         pass
 
 
@@ -308,6 +324,7 @@ class Game(Scene):
         if not self.sheet.generated:
             self.sheet.generate()
         pl_score_len = len(str(self.player_score)) * self.sheet.scale * 4
+        # noinspection PyUnusedLocal
         bot_score_len = len(str(self.bot_score)) * self.sheet.scale * 4
         start_x = 256 - pl_score_len - 30
         for letter in str(self.player_score):
@@ -377,10 +394,26 @@ class Menu(Scene):
     def __init__(self, app):
         super(Menu, self).__init__(app)
 
-    def draw(self) -> pg.Surface:
-        screen = self.settings["size"]
+        def click():
+            self.app.scene = self.app.game
 
-        return screen
+        self.screen = pg.Surface(self.settings["size"])
+        self.start_button = Button(
+            self.screen,
+            position=(240, 100),
+            texts=["start game"],
+            texts_bg_color=[(255, 255, 255)],
+            action=click
+        )
+
+    def draw(self) -> pg.Surface:
+        self.start_button.render()
+        return self.screen
+
+    def handle_event(self, event):
+        if event.type == pg.MOUSEBUTTONDOWN:
+            print(get_pos())
+            self.start_button.check_click(get_pos())
 
 
 class Settings(Scene):

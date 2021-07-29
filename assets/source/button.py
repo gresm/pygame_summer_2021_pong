@@ -7,13 +7,13 @@ from pygame.sprite import Sprite
 
 from assets.images.sprite_sheet import load_image
 
-
 COLOR = Union[p.Color, Tuple[int, int, int], Tuple[int, int, int, int]]
+
 
 
 class Button:
 
-    def __init__(self, screen: p.Surface,
+    def __init__(self, screen: p.Surface = None,
                  position: Union[Vector2, Tuple[int, float]] = (0, 0),
                  texts: Optional[List[str]] = None, texts_font: Optional[List[FontType]] = None,
                  texts_color: Optional[List[COLOR]] = None, texts_bg_color: Optional[List[COLOR]] = None,
@@ -32,8 +32,8 @@ class Button:
             if texts_color is None:
                 texts_color = p.color.Color(255, 255, 255)
             for i in range(self.click_range.stop):
-                text_r = [texts_font.render(texts[i], True, texts_color),
-                          texts_font.render(texts[i], True, texts_color)]
+                text_r = [texts_font[i].render(texts[i], True, texts_color),
+                          texts_font[i].render(texts[i], True, texts_color)]
                 size = [text_r[i].get_size(), text_r[i].get_size()]
                 self.display = [p.Surface(size[i]), p.Surface(size[i])]
             if texts_bg_color is not None:
@@ -63,7 +63,7 @@ class Button:
                 self.rect.append(imgs[i].rect)
         else:
             raise ValueError
-        if render:
+        if render and screen is not None:
             self.render()
         if action is not None:
             self.click = action
@@ -87,5 +87,8 @@ class Button:
                 self.swap += self.click_range.step
 
     def check_click(self, cursor_pos):
-        if self.rect[self.swap].collidepoint(cursor_pos):
+        cursor_pos = list(cursor_pos)
+        cursor_pos[0] -= self.position.x
+        cursor_pos[1] -= self.position.y
+        if cursor_pos[0] in range(self.rect[self.swap].height) and cursor_pos[1] in range(self.rect[self.swap].width):
             self.click()
