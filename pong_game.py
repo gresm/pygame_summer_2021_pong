@@ -21,18 +21,34 @@ class App:
     fps = 30
 
     def __init__(self):
-        self.screen = pg.display.set_mode((1024, 512))
-        pg.display.set_caption("Pong")
-        pg.display.set_icon(self.screen)
         self.game = Game(self)
         self.menu = Menu(self)
         self.settings = Settings(self)
-        self.scene = self.game
+        self._scene: Scene = ...
+        self.screen: pg.Surface = ...
         self.done = False
         self.clock = pg.time.Clock()
+        self.scene = self.game
+
+    @property
+    def scene(self):
+        return self._scene
+
+    @scene.setter
+    def scene(self, value: "Scene"):
+        self._scene = value
+        self.update_screen()
+
+    def update_screen(self):
+        pg.display.set_mode(self.scene.settings["scale"])
+        pg.display.set_caption(self.scene.settings["title"])
+        if self.scene.settings["icon"]:
+            pg.display.set_icon(self.scene.settings["icon"])
+
+        self.screen = pg.display.get_surface()
 
     def draw(self):
-        self.screen.blit(pg.transform.scale2x(self.scene.draw()), (0, 0))
+        self.screen.blit(pg.transform.scale(self.scene.draw(), self.scene.settings["scale"]), (0, 0))
         pg.display.update()
 
     def update(self):
@@ -224,6 +240,7 @@ class BallGoal:
 
 class Scene:
     app = None
+    settings = {"size": (0, 0), "scale": (0, 0), "title": "", "icon": None}
 
     def __init__(self, app):
         self.app = self.app or app
@@ -242,22 +259,24 @@ class Scene:
 
 
 class Game(Scene):
+    settings = {"size": (512, 256), "scale": (1024, 512), "title": "Pong", "icon": None}
+
     def __init__(self, app: App):
         super(Game, self).__init__(app)
         self.pl_img = pg.Surface((10, 50))
         self.pl_img.fill((255, 255, 255))
         self.bl_img = pg.Surface((10, 10))
         self.bl_img.fill((255, 255, 255))
-        self.bounds = pg.Rect(0, 0, 512, 256)
+        self.bounds = pg.Rect(20, 15, 482, 221)
         self.player = Player(pg.Vector2(30, 128), pg.Rect(0, 0, 10, 50), self.pl_img, self.bounds, 10)
-        self.bot = Player(pg.Vector2(482, 128), pg.Rect(0, 0, 10, 50), self.pl_img, self.bounds, 10)
+        self.bot = Player(pg.Vector2(472, 128), pg.Rect(0, 0, 10, 50), self.pl_img, self.bounds, 10)
         self.ball: Ball = ...
         self.max_bounds = pg.Rect(self.bounds.x - 20, self.bounds.y - 20, self.bounds.width + 20,
                                   self.bounds.height + 20)
         self.players_group = pg.sprite.Group(self.player, self.bot)
         self.balls_group = pg.sprite.Group()
-        self.left_goal = BallGoal(pg.Rect(10, 0, 10, 256), self.left_collide)
-        self.right_goal = BallGoal(pg.Rect(502, 0, 10, 256), self.right_collide)
+        self.left_goal = BallGoal(pg.Rect(20, 0, 10, 256), self.left_collide)
+        self.right_goal = BallGoal(pg.Rect(492, 0, 10, 256), self.right_collide)
         self.goals = [self.left_goal, self.right_goal]
         self.player_score = 0
         self.bot_score = 0
@@ -265,19 +284,38 @@ class Game(Scene):
         self.scoring_elapse = 0
         self.respawn_ball()
         self.sheet = sp_sh.load_sprite_sheet("sprite_sheet.png", "sprite_sheet.json", 6)
+        self.background = pg.Surface(self.settings["size"])
+        self.background.fill((0, 0, 0))
+        pg.draw.rect(self.background, (255, 255, 255), pg.Rect(10, 10, 10, self.settings["size"][1] - 20))
+        pg.draw.rect(self.background, (255, 255, 255), pg.Rect(10, 10, self.settings["size"][0] - 20, 10))
+        pg.draw.rect(self.background, (255, 255, 255), pg.Rect(self.settings["size"][0] - 20, 10, 10,
+                                                               self.settings["size"][1] - 20))
+        pg.draw.rect(self.background, (255, 255, 255), pg.Rect(10, self.settings["size"][1] - 20,
+                                                               self.settings["size"][0] - 20, 10))
+
+        pg.draw.rect(self.background, (255, 255, 255), pg.Rect(self.settings["size"][0]//2 - 5, 10, 10,
+                                                               self.settings["size"][1] - 20))
 
     def draw(self):
-        screen = pg.Surface((512, 256))
+        screen = pg.Surface(self.settings["size"])
+        screen.blit(self.background, (0, 0))
         self.players_group.draw(screen)
         self.balls_group.draw(screen)
         self.draw_text(screen)
         return screen
 
     def draw_text(self, surface: pg.Surface):
+        if not self.sheet.generated:
+            self.sheet.generate()
         pl_score_len = len(str(self.player_score)) * self.sheet.scale * 4
         bot_score_len = len(str(self.bot_score)) * self.sheet.scale * 4
         start_x = 256 - pl_score_len - 30
         for letter in str(self.player_score):
+            surface.blit(self.sheet.get(letter), (start_x, 30))
+            start_x += self.sheet.scale * 5
+
+        start_x = 256 + 30
+        for letter in str(self.bot_score):
             surface.blit(self.sheet.get(letter), (start_x, 30))
             start_x += self.sheet.scale * 5
 
@@ -334,13 +372,15 @@ class Game(Scene):
 
 
 class Menu(Scene):
+    settings = {"size": (512, 256), "scale": (1024, 512), "title": "Pong Menu", "icon": None}
 
     def __init__(self, app):
         super(Menu, self).__init__(app)
 
-        def click():
-            self.app.scene = self.app.game
-#       self.start_button = Button(self.app.screen, (100, 100), ["start game"], SysFont, action=click)
+    def draw(self) -> pg.Surface:
+        screen = self.settings["size"]
+
+        return screen
 
 
 class Settings(Scene):

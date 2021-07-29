@@ -10,11 +10,14 @@ class SpriteSheet:
         self.info = info
         self.images = dict()
         self.scale = scale
-        self.generate()
+        self.generated = False
 
     def generate(self):
+        if not self.generated:
+            self.source = self.source.convert_alpha()
         for image in self.info:
             self.images[image] = self.get_subsurface(image)
+        self.generated = True
 
     def get(self, name: str):
         return self.images[name]
@@ -33,7 +36,7 @@ def load_sprite_sheet(sheet: str, info: str, scale: float = 1):
 
 
 def load_image(name: str):
-    return pg.image.load(get_path(name)).convert_alpha()
+    return pg.image.load(get_path(name))
 
 
 def get_path(name: str):
