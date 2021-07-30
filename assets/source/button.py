@@ -32,7 +32,7 @@ class Button:
             if texts_color is None:
                 texts_color = p.color.Color(255, 255, 255)
             for i in range(self.click_range.stop):
-                text_r = [texts_font[i].render(texts[i], True, texts_color),
+                text_r = [()(texts_font[i].render(texts[i], True, texts_color),
                           texts_font[i].render(texts[i], True, texts_color)]
                 size = [text_r[i].get_size(), text_r[i].get_size()]
                 self.display = [p.Surface(size[i]), p.Surface(size[i])]

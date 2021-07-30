@@ -42,7 +42,7 @@ class App:
         self.scene = self.menu
 
     @property
-    def scene(self):
+    def scene(self) -> "Scene":
         return self._scene
 
     @scene.setter
@@ -417,11 +417,6 @@ class Menu(Scene):
 
     def __init__(self, app):
         super(Menu, self).__init__(app)
-
-        def click():
-            self.app.scene = self.app.game
-
-        self.click = click
         self.screen = pg.Surface(self.settings["size"])
         self.font = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 8)
         self.small_font = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 4)
@@ -436,8 +431,9 @@ class Menu(Scene):
 
     def draw(self) -> pg.Surface:
         self.screen.fill((0, 0, 0))
-        if self.let:
-            self.screen.blit(self.let, (0, 0))
+        self.title_rect = self.render_text(self.screen, self.tile, (185, 0), 8, 0, self.font, True, 40)
+        self.play_rect = self.render_text(self.screen, "play", (220, 75), 8, 0, self.small_font, True, 40)
+        self.tutorial_rect = self.render_text(self.screen, "tutorial", (175, 125), 8, 0, self.small_font, True, 40)
         return self.screen
 
     def pong_title_easter_egg(self):
