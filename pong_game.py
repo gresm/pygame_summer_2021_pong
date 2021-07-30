@@ -37,7 +37,7 @@ class App:
         self.settings = Settings(self)
         self._scene: Scene = ...
         self.screen: pg.Surface = ...
-        self.done = False
+        self.done = True
         self.clock = pg.time.Clock()
         self.scene = self.menu
 
@@ -48,6 +48,8 @@ class App:
     @scene.setter
     def scene(self, value: "Scene"):
         self._scene = value
+        if not self.done:
+            self._scene.initialize()
         self.update_screen()
 
     @property
@@ -71,6 +73,8 @@ class App:
         self.scene.update()
 
     def run(self):
+        self.done = False
+        self._scene.initialize()
         while not self.done:
             self.update()
             self.draw()
@@ -268,6 +272,7 @@ class Scene:
 
     def __init__(self, app):
         self.app = self.app or app
+        self.initialized = False
 
     def draw(self) -> pg.Surface:
         pass
@@ -279,6 +284,14 @@ class Scene:
         pass
 
     def handle_event(self, event):
+        pass
+
+    def init(self):
+        if not self.initialized:
+            self.initialize()
+            self.initialized = True
+
+    def initialize(self):
         pass
 
 
@@ -307,7 +320,7 @@ class Game(Scene):
         self.scoring_delay = 10
         self.scoring_elapse = 0
         self.respawn_ball()
-        self.sheet = sp_sh.load_sprite_sheet("sprite_sheet.png", "sprite_sheet.json", 6)
+        self.sheet = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 6)
         self.background = pg.Surface(self.settings["size"])
         self.background.fill((0, 0, 0))
         pg.draw.rect(self.background, (255, 255, 255), pg.Rect(10, 10, 10, self.settings["size"][1] - 20))
@@ -328,9 +341,10 @@ class Game(Scene):
         self.draw_text(screen)
         return screen
 
+    def initialize(self):
+        self.sheet.generate()
+
     def draw_text(self, surface: pg.Surface):
-        if not self.sheet.generated:
-            self.sheet.generate()
         pl_score_len = len(str(self.player_score)) * self.sheet.scale * 4
         # noinspection PyUnusedLocal
         bot_score_len = len(str(self.bot_score)) * self.sheet.scale * 4
@@ -406,14 +420,29 @@ class Menu(Scene):
         def click():
             self.app.scene = self.app.game
 
+        self.click = click
         self.screen = pg.Surface(self.settings["size"])
+        self.font = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 8)
+        self.l_iter = ...
+        self.let = None
+
+    def initialize(self):
+        self.font.generate()
+        self.l_iter = iter(self.font.images)
 
     def draw(self) -> pg.Surface:
         self.screen.fill((0, 0, 0))
+        if self.let:
+            self.screen.blit(self.let, (0, 0))
         return self.screen
 
     def handle_event(self, event):
-        pass
+        if event.type == pg.MOUSEBUTTONDOWN:
+            try:
+                let = next(self.l_iter)
+                self.let = self.font.images[let]
+            except StopIteration:
+                self.click()
 
 
 class Settings(Scene):

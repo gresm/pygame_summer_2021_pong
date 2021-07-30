@@ -5,10 +5,11 @@ import os
 
 
 class SpriteSheet:
-    def __init__(self, source: pg.Surface, info: Dict[str, Tuple[int, int, int, int]], scale: float = 1):
+    def __init__(self, source: pg.Surface, info: Dict[str, Tuple[int, int, int, int]], default: str, scale: float = 1):
         self.source = source
         self.info = info
-        self.images = dict()
+        self.images: Dict[str, pg.Surface] = dict()
+        self.default = default
         self.scale = scale
         self.generated = False
 
@@ -20,7 +21,7 @@ class SpriteSheet:
         self.generated = True
 
     def get(self, name: str):
-        return self.images[name]
+        return self.images[name] if name in self.images else self.images[self.default]
 
     def get_subsurface(self, name: str) -> pg.Surface:
         cords = self.info[name]
@@ -31,8 +32,8 @@ class SpriteSheet:
                                               int(raw_image.get_height() * self.scale)))
 
 
-def load_sprite_sheet(sheet: str, info: str, scale: float = 1):
-    return SpriteSheet(load_image(sheet), json.load(open(get_path(info))), scale)
+def load_sprite_sheet(sheet: str, info: str, default: str, scale: float = 1):
+    return SpriteSheet(load_image(sheet), json.load(open(get_path(info))), default, scale)
 
 
 def load_image(name: str):
