@@ -1,7 +1,7 @@
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Tuple, Union
 import pygame as pg
+import random as rd
 
-from assets.source.button import Button
 from assets.source.switch_case import switch, case
 from assets.images import sprite_sheet as sp_sh
 import random as rd
@@ -172,8 +172,7 @@ class Ball(pg.sprite.Sprite):
     vertical = pg.Vector2(1, -1)
 
     def __init__(self, pos: pg.Vector2, vel: pg.Vector2, hit_box: pg.Rect, image: pg.Surface,
-                 walls: pg.Rect,
-                 bonce_interval: int):
+                 walls: pg.Rect, bounce_interval: int, pads_bounce_interval: int):
         super().__init__()
         self.pos = pos
         self.vel = vel
@@ -182,9 +181,9 @@ class Ball(pg.sprite.Sprite):
         self.image = image
         self.size = self.image.get_size()
         self.walls = walls
-        self.bounce_interval = bonce_interval
+        self.bounce_interval = bounce_interval
         self.bounce_elapse = 0
-        self.pads_bounce_interval = bonce_interval
+        self.pads_bounce_interval = pads_bounce_interval
         self.pads_bounce_elapse = 0
 
     @property
@@ -213,7 +212,10 @@ class Ball(pg.sprite.Sprite):
                 if self.hit_box.colliderect(pad.hit_box) and self.pads_bounce_elapse == 0:
                     si_x, si_y = multiply_vec(self.vel, pad.ball_bounce)
                     diff = pg.Vector2(self.hit_box.center) - pg.Vector2(pad.hit_box.center)
-                    v_x, v_y = diff / diff.length() * 10
+                    if diff.length():
+                        v_x, v_y = diff / diff.length() * 10
+                    else:
+                        v_x, v_y = 8, 6
                     if v_x == 0:
                         v_x = 1
                     self.vel = pg.Vector2(mh.copysign(v_x, si_x), mh.copysign(v_y, si_y))
@@ -296,7 +298,7 @@ class Scene:
 
 
 class Game(Scene):
-    settings = {"size": (512, 256), "scale": (1024, 512), "title": "Pong", "icon": None}
+    settings = {"size": (512, 256), "scale": (1024, 512), "title": "Pong Game", "icon": None}
 
     def __init__(self, app: App):
         super(Game, self).__init__(app)
@@ -369,8 +371,7 @@ class Game(Scene):
         else:
             ball_vec = pg.Vector2(8, 9)
 
-        self.ball = Ball(pg.Vector2(256, 128), ball_vec, pg.Rect(0, 0, 10, 10), self.bl_img, self.bounds,
-                         10)
+        self.ball = Ball(pg.Vector2(256, 128), ball_vec, pg.Rect(0, 0, 10, 10), self.bl_img, self.bounds, 0, 5)
         self.ball.add(self.balls_group)
 
     def update(self):
@@ -423,12 +424,15 @@ class Menu(Scene):
         self.click = click
         self.screen = pg.Surface(self.settings["size"])
         self.font = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 8)
-        self.l_iter = ...
-        self.let = None
+        self.small_font = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 4)
+        self.title_rect: pg.Rect = ...
+        self.play_rect: pg.Rect = ...
+        self.tutorial_rect: pg.Rect = ...
+        self.tile = "pong"
 
     def initialize(self):
         self.font.generate()
-        self.l_iter = iter(self.font.images)
+        self.small_font.generate()
 
     def draw(self) -> pg.Surface:
         self.screen.fill((0, 0, 0))
@@ -436,13 +440,57 @@ class Menu(Scene):
             self.screen.blit(self.let, (0, 0))
         return self.screen
 
+    def pong_title_easter_egg(self):
+        if rd.randint(0, 10) == 10:
+            self.tile = "pang"
+            self.settings["title"] = "Pang Menu"
+            self.app.game.settings["title"] = "Pang Game"
+            self.app.update_screen()
+
+    def play(self):
+        self.app.scene = self.app.game
+
+    def render_text(self, surface: pg.Surface, text: Union[List[str], str], pos: Tuple[int, int], right_offset: int,
+                    down_offset: int, font: Optional[sp_sh.SpriteSheet] = None, calculate_offset: bool = False,
+                    space_offset: int = 0, enter_offset: int = 0):
+        text += "\n"
+        font = font or self.font
+        cur_pos = pos
+        last_letter: Optional[pg.Surface] = None
+        biggest_width = 0
+        for letter in text:
+            if letter == "\n":
+                if biggest_width < cur_pos[0]:
+                    biggest_width = cur_pos[0]
+                if calculate_offset:
+                    cur_pos = pos[0], cur_pos[1] + (enter_offset if not last_letter else last_letter.get_height())\
+                              + down_offset
+                else:
+                    cur_pos = pos[0], cur_pos[1] + down_offset
+
+            elif letter == " ":
+                if calculate_offset:
+                    cur_pos = cur_pos[0] + (space_offset if not last_letter else last_letter.get_width()), cur_pos[1]
+                else:
+                    cur_pos = cur_pos[0] + right_offset, cur_pos[1]
+            else:
+                last_letter = font.get(letter)
+                surface.blit(last_letter, cur_pos)
+                if calculate_offset:
+                    cur_pos = cur_pos[0] + last_letter.get_width() + right_offset, cur_pos[1]
+                else:
+                    cur_pos = cur_pos[0] + right_offset, cur_pos[1]
+        width = biggest_width - pos[0]
+        height = cur_pos[1] - pos[1]
+        return pg.Rect(pos, (width, height))
+
     def handle_event(self, event):
         if event.type == pg.MOUSEBUTTONDOWN:
-            try:
-                let = next(self.l_iter)
-                self.let = self.font.images[let]
-            except StopIteration:
-                self.click()
+            mouse_pos = self.app.get_mouse_pos()
+            if self.play_rect.collidepoint(mouse_pos):
+                self.play()
+            if self.title_rect.collidepoint(mouse_pos):
+                self.pong_title_easter_egg()
 
 
 class Settings(Scene):
