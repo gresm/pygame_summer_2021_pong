@@ -423,6 +423,7 @@ class Menu(Scene):
         self.title_rect: pg.Rect = ...
         self.play_rect: pg.Rect = ...
         self.tutorial_rect: pg.Rect = ...
+        self.quit_rect: pg.Rect = ...
         self.tile = "pong"
 
     def initialize(self):
@@ -431,9 +432,10 @@ class Menu(Scene):
 
     def draw(self) -> pg.Surface:
         self.screen.fill((0, 0, 0))
-        self.title_rect = self.render_text(self.screen, self.tile, (185, 0), 8, 0, self.font, True, 40)
-        self.play_rect = self.render_text(self.screen, "play", (220, 75), 8, 0, self.small_font, True, 40)
-        self.tutorial_rect = self.render_text(self.screen, "tutorial", (175, 125), 8, 0, self.small_font, True, 40)
+        self.title_rect = self.render_text(self.screen, self.tile, (0, 0), 8, 0, self.font, True, 40)
+        self.play_rect = self.render_text(self.screen, "play", (0, 75), 8, 0, self.small_font, True, 40)
+        self.tutorial_rect = self.render_text(self.screen, "tutorial", (0, 125), 8, 0, self.small_font, True, 40)
+        self.quit_rect = self.render_text(self.screen, "quit", (0, 175), 8, 0, self.small_font, True, 40)
         return self.screen
 
     def pong_title_easter_egg(self):
@@ -487,6 +489,12 @@ class Menu(Scene):
                 self.play()
             if self.title_rect.collidepoint(mouse_pos):
                 self.pong_title_easter_egg()
+            if self.quit_rect.collidepoint(mouse_pos):
+                self.app.done = True
+
+
+class Tutorial(Scene):
+    pass
 
 
 class Settings(Scene):
