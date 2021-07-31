@@ -1,6 +1,5 @@
 from typing import Callable, List, Optional, Tuple, Union
 import pygame as pg
-import random as rd
 
 from assets.source.switch_case import switch, case
 from assets.images import sprite_sheet as sp_sh
@@ -413,17 +412,18 @@ class Game(Scene):
 
 class Menu(Scene):
     settings = {"size": (512, 256), "scale": (1024, 512), "title": "Pong Menu", "icon": None,
-                "events_filter": {pg.MOUSEBUTTONDOWN}}
+                "events_filter": {pg.MOUSEBUTTONDOWN, pg.KEYDOWN}}
 
     def __init__(self, app):
         super(Menu, self).__init__(app)
         self.screen = pg.Surface(self.settings["size"])
         self.font = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 8)
         self.small_font = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 4)
-        self.title_rect: pg.Rect = ...
-        self.play_rect: pg.Rect = ...
-        self.tutorial_rect: pg.Rect = ...
-        self.quit_rect: pg.Rect = ...
+        self.title_rect: pg.Rect = pg.Rect(0, 0, 0, 0)
+        self.play_rect: pg.Rect = pg.Rect(0, 0, 0, 0)
+        self.tutorial_rect: pg.Rect = pg.Rect(0, 0, 0, 0)
+        self.quit_rect: pg.Rect = pg.Rect(0, 0, 0, 0)
+        self.option_selected: int = ...
         self.tile = "pong"
 
     def initialize(self):
@@ -436,7 +436,28 @@ class Menu(Scene):
         self.play_rect = self.render_text(self.screen, "play", (0, 75), 8, 0, self.small_font, True, 40)
         self.tutorial_rect = self.render_text(self.screen, "tutorial", (0, 125), 8, 0, self.small_font, True, 40)
         self.quit_rect = self.render_text(self.screen, "quit", (0, 175), 8, 0, self.small_font, True, 40)
+
+        if not isinstance(self.option_selected, int):
+            pass
+        elif self.option_selected == 0:
+            pg.draw.rect(self.screen, (255, 255, 255), self.play_rect, 5)
+        elif self.option_selected == 1:
+            pg.draw.rect(self.screen, (255, 255, 255), self.tutorial_rect, 5)
+        elif self.option_selected == 2:
+            pg.draw.rect(self.screen, (255, 255, 255), self.quit_rect, 5)
+        else:
+            self.option_selected %= 3
+
         return self.screen
+
+    def update(self):
+        mouse_pos = self.app.get_mouse_pos()
+        if self.play_rect.collidepoint(mouse_pos):
+            self.option_selected = 0
+        elif self.tutorial_rect.collidepoint(mouse_pos):
+            self.option_selected = 1
+        elif self.quit_rect.collidepoint(mouse_pos):
+            self.option_selected = 2
 
     def pong_title_easter_egg(self):
         if rd.randint(0, 10) == 10:
@@ -447,6 +468,12 @@ class Menu(Scene):
 
     def play(self):
         self.app.scene = self.app.game
+
+    def tutorial(self):
+        pass
+
+    def quit(self):
+        self.app.done = True
 
     def render_text(self, surface: pg.Surface, text: Union[List[str], str], pos: Tuple[int, int], right_offset: int,
                     down_offset: int, font: Optional[sp_sh.SpriteSheet] = None, calculate_offset: bool = False,
@@ -485,12 +512,29 @@ class Menu(Scene):
     def handle_event(self, event):
         if event.type == pg.MOUSEBUTTONDOWN:
             mouse_pos = self.app.get_mouse_pos()
-            if self.play_rect.collidepoint(mouse_pos):
-                self.play()
             if self.title_rect.collidepoint(mouse_pos):
                 self.pong_title_easter_egg()
+            if self.play_rect.collidepoint(mouse_pos):
+                self.play()
+            if self.tutorial_rect.collidepoint(mouse_pos):
+                self.tutorial()
             if self.quit_rect.collidepoint(mouse_pos):
-                self.app.done = True
+                self.quit()
+        elif event.type == pg.KEYDOWN:
+            if not isinstance(self.option_selected, int):
+                self.option_selected = 0
+            if event.key == pg.K_DOWN or event.key == pg.K_s:
+                self.option_selected += 1
+            if event.key == pg.K_UP or event.key == pg.K_w:
+                self.option_selected -= 1
+
+            if event.key == pg.K_RETURN:
+                if self.option_selected == 0:
+                    self.play()
+                elif self.option_selected == 1:
+                    self.tutorial()
+                elif self.option_selected == 2:
+                    self.quit()
 
 
 class Tutorial(Scene):
