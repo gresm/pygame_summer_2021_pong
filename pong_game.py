@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union, Set
 import pygame as pg
 
 from assets.source.switch_case import switch, case
@@ -53,7 +53,7 @@ class App:
 
     @property
     def scene_scale(self):
-        return self.scene.settings["scale"][0] / self.scene.settings["size"][0], self.scene.settings["scale"][1] /\
+        return self.scene.settings["scale"][0] / self.scene.settings["size"][0], self.scene.settings["scale"][1] / \
                self.scene.settings["size"][1]
 
     def update_screen(self):
@@ -312,7 +312,7 @@ class Scene:
                 if biggest_width < cur_pos[0]:
                     biggest_width = cur_pos[0]
                 if calculate_offset:
-                    cur_pos = pos[0], cur_pos[1] + (enter_offset if not last_letter else last_letter.get_height())\
+                    cur_pos = pos[0], cur_pos[1] + (enter_offset if not last_letter else last_letter.get_height()) \
                               + down_offset
                 else:
                     cur_pos = pos[0], cur_pos[1] + down_offset
@@ -340,10 +340,14 @@ class Game(Scene):
 
     def __init__(self, app: App):
         super(Game, self).__init__(app)
-        self.pl_img = pg.Surface((10, 50))
+        self.pl_img = pg.Surface((10, 50), pg.SRCALPHA)
         self.pl_img.fill((255, 255, 255))
-        self.bl_img = pg.Surface((10, 10))
-        self.bl_img.fill((255, 255, 255))
+
+        self.pl_disabled_img = pg.Surface((10, 50), pg.SRCALPHA)
+        self.pl_disabled_img.fill((255, 255, 255, 100))
+
+        self.bl_img = pg.Surface((10, 10), pg.SRCALPHA)
+        pg.draw.circle(self.bl_img, (255, 255, 255), (5, 5), 5)
         self.bounds = pg.Rect(20, 15, 482, 221)
         self.player = Player(pg.Vector2(30, 128), pg.Rect(0, 0, 10, 50), self.pl_img, self.bounds, 10)
         self.bot = Player(pg.Vector2(472, 128), pg.Rect(0, 0, 10, 50), self.pl_img, self.bounds, 10)
@@ -371,7 +375,7 @@ class Game(Scene):
         pg.draw.rect(self.background, (255, 255, 255), pg.Rect(10, self.settings["size"][1] - 20,
                                                                self.settings["size"][0] - 20, 10))
 
-        pg.draw.rect(self.background, (255, 255, 255), pg.Rect(self.settings["size"][0]//2 - 5, 10, 10,
+        pg.draw.rect(self.background, (255, 255, 255), pg.Rect(self.settings["size"][0] // 2 - 5, 10, 10,
                                                                self.settings["size"][1] - 20))
 
         self.title = "pong"
@@ -558,34 +562,47 @@ class TutorialDialogue:
         self.dialogue_rect = None
 
     def is_paused(self):
-        if not self.get_text():
-            self.check_stage()
-            return False
-        if self.stage in {"0", "1", "2.easy", "2.hard", "2.long"}:
+        self.check_stage()
+        if self.stage in {"0", "1", "2.get_easy", "2.get_hard", "2.get_long", "2.long_info"}:
+            self.game.screen.fill((0, 0, 0))
             return True
+        return False
 
     def generate_dialogues(self):
         self.dialogues = {"0": f"welcome to {self.game.title}\n[press enter to continue]",
                           "1": "to move, use keys 'w' and 's'", "2": "",
-                          "2.easy": "at the moment bot is easy\nlet make it harder",
-                          "2.hard": """looks like you have problems with winning
-pro tip: bot bounces easily balls flying straight
-and very turned""",
-                          "2.long": "nearly tie?, make it more interesting"}
+                          "2.get_easy": "at the moment bot is easy\nlet make it harder",
+                          "2.get_hard": "hard to win? ok i'll make bot slower",
+                          "2.get_long": "nearly tie?\nmake it more interesting!",
+                          "2.long_info": "now you can shoot[space], when bullet hits pallet\npallet can't move for a "
+                                         "bit of time",
+                          "3.1": "", "3.2": "", "3.3": ""}
 
     def get_text(self) -> str:
         return self.dialogues[self.stage]
 
     def update_stage(self):
-        if self.stage == "0":
-            self.stage = "1"
-        elif self.stage == "1":
-            self.stage = "2"
-        self.game.screen.fill((0, 0, 0))
+        move_dict = {"0": "1", "1": "2", "2.get_easy": "3.1", "2.get_hard": "3.2", "2.get_long": "2.long_info",
+                     "2.long_info": "3.3"}
+        if self.stage in move_dict:
+            self.stage = move_dict[self.stage]
 
     def check_stage(self):
         if self.stage == "2":
-            pass
+            if self.game.player_score * 2 <= self.game.bot_score and self.game.bot_score >= 10:
+                self.stage = "2.get_hard"
+                self.game.bot.up_force = pg.Vector2(y=-5)
+                self.game.bot.down_force = pg.Vector2(y=5)
+                self.game.bot.up_force = pg.Vector2(y=-5)
+                self.game.bot.down_force = pg.Vector2(y=5)
+                self.game.bot.control_delay = 2
+            elif self.game.player_score >= self.game.bot_score * 2 and self.game.player_score >= 15:
+                self.stage = "2.get_easy"
+                self.game.bot.up_force = pg.Vector2(y=-5)
+                self.game.bot.down_force = pg.Vector2(y=5)
+                self.game.bot.control_delay = 2
+            elif self.game.bot_score >= 2:
+                self.stage = "2.get_long"
 
 
 class Tutorial(Game):
@@ -594,6 +611,25 @@ class Tutorial(Game):
         self.font = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 2)
         self.dialogue = TutorialDialogue(self)
         self.screen: pg.Surface = ...
+        self.player_bullets: List[pg.Rect] = []
+        self.bot_bullets: List[pg.Rect] = []
+        self.player_stunned = 0
+        self.bot_stunned = 0
+        self.player_reload = 0
+        self.bot_reload = 0
+        self.stun_time = 30
+        self.reload_time = 30
+
+    @staticmethod
+    def add_bullet(set_to_add: List[pg.Rect], thrower: pg.Rect):
+        bullet = pg.Rect(0, 0, 5, 5)
+        bullet.center = thrower.center
+        set_to_add.append(bullet)
+
+    def player_shoot(self):
+        if self.player_reload == 0:
+            self.add_bullet(self.player_bullets, self.player.rect)
+            self.player_reload += self.reload_time
 
     def initialize(self):
         self.font.generate()
@@ -605,6 +641,27 @@ class Tutorial(Game):
             self.dialogue.generate_dialogues()
         else:
             super(Tutorial, self).update()
+            for pl_b_index in range(len(self.player_bullets)):
+                if self.bot.hit_box.colliderect(self.player_bullets[pl_b_index]):
+                    self.bot_stunned += self.stun_time
+                self.player_bullets[pl_b_index].x += 5
+                if not self.max_bounds.contains(self.player_bullets[pl_b_index]):
+                    self.player_bullets.pop(pl_b_index)
+                    break
+
+            for bt_b_index in range(len(self.bot_bullets)):
+                if self.player.hit_box.colliderect(self.bot_bullets[bt_b_index]):
+                    self.player_stunned += self.stun_time
+                self.bot_bullets[bt_b_index].x += 5
+                if not self.max_bounds.contains(self.bot_bullets[bt_b_index]):
+                    self.bot_bullets.pop(bt_b_index)
+                    break
+
+            if self.player_reload > 0:
+                self.player_reload -= 1
+
+            if self.bot_reload > 0:
+                self.bot_reload -= 1
 
     def draw(self):
         if self.dialogue.is_paused():
@@ -619,7 +676,12 @@ class Tutorial(Game):
             )
             return self.screen
         else:
-            return super(Tutorial, self).draw()
+            ret = super(Tutorial, self).draw()
+            for pl_bullet in self.player_bullets:
+                pg.draw.rect(ret, (255, 0, 0), pl_bullet)
+            for bt_bullet in self.bot_bullets:
+                pg.draw.rect(ret, (255, 0, 0), bt_bullet)
+            return ret
 
     # noinspection PyCallingNonCallable
     def handle_input(self, k_id: int):
@@ -632,6 +694,10 @@ class Tutorial(Game):
     def handle_event(self, event):
         if not self.dialogue.is_paused():
             super(Tutorial, self).handle_event(event)
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_SPACE:
+                    if self.dialogue.stage == "3.3":
+                        self.player_shoot()
         else:
             with switch(event.type):
                 if case(pg.KEYDOWN):
