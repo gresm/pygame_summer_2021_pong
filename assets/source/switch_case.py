@@ -149,7 +149,7 @@ class Switcher:
                     self.default = not _return
                     return _return
 
-        def func(*value):
+        def func(*value) -> bool:
             if len(value) == 0:
                 value = None
             elif len(value) == 1:
@@ -161,7 +161,6 @@ class Switcher:
                     return False
             else:
                 return check(value)
-
         return func
 
 
