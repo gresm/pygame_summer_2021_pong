@@ -33,7 +33,7 @@ class App:
     def __init__(self):
         self.game = Game(self)
         self.menu = Menu(self)
-        self.settings = Settings(self)
+        self.tutorial = Tutorial(self)
         self._scene: Scene = ...
         self.screen: pg.Surface = ...
         self.done = True
@@ -63,6 +63,9 @@ class App:
             pg.display.set_icon(self.scene.settings["icon"])
 
         self.screen = pg.display.get_surface()
+
+    def get_scene_screen(self):
+        return pg.Surface(self.scene.settings["size"])
 
     def draw(self):
         self.screen.blit(pg.transform.scale(self.scene.draw(), self.scene.settings["scale"]), (0, 0))
@@ -274,6 +277,7 @@ class Scene:
     def __init__(self, app):
         self.app = self.app or app
         self.initialized = False
+        self.font: sp_sh.SpriteSheet = ...
 
     def draw(self) -> pg.Surface:
         pass
@@ -295,9 +299,44 @@ class Scene:
     def initialize(self):
         pass
 
+    def render_text(self, surface: pg.Surface, text: Union[List[str], str], pos: Tuple[int, int], right_offset: int,
+                    down_offset: int, font: Optional[sp_sh.SpriteSheet] = None, calculate_offset: bool = False,
+                    space_offset: int = 0, enter_offset: int = 0):
+        text += "\n"
+        font = font or self.font
+        cur_pos = pos
+        last_letter: Optional[pg.Surface] = None
+        biggest_width = 0
+        for letter in text:
+            if letter == "\n":
+                if biggest_width < cur_pos[0]:
+                    biggest_width = cur_pos[0]
+                if calculate_offset:
+                    cur_pos = pos[0], cur_pos[1] + (enter_offset if not last_letter else last_letter.get_height())\
+                              + down_offset
+                else:
+                    cur_pos = pos[0], cur_pos[1] + down_offset
+
+            elif letter == " ":
+                if calculate_offset:
+                    cur_pos = cur_pos[0] + (space_offset if not last_letter else last_letter.get_width()), cur_pos[1]
+                else:
+                    cur_pos = cur_pos[0] + right_offset, cur_pos[1]
+            else:
+                last_letter = font.get(letter)
+                surface.blit(last_letter, cur_pos)
+                if calculate_offset:
+                    cur_pos = cur_pos[0] + last_letter.get_width() + right_offset, cur_pos[1]
+                else:
+                    cur_pos = cur_pos[0] + right_offset, cur_pos[1]
+        width = biggest_width - pos[0]
+        height = cur_pos[1] - pos[1]
+        return pg.Rect(pos, (width, height))
+
 
 class Game(Scene):
-    settings = {"size": (512, 256), "scale": (1024, 512), "title": "Pong Game", "icon": None}
+    settings = {"size": (512, 256), "scale": (1024, 512), "title": "Pong Game", "icon": None,
+                "events_filter": {pg.MOUSEBUTTONDOWN, pg.KEYDOWN}}
 
     def __init__(self, app: App):
         super(Game, self).__init__(app)
@@ -324,6 +363,7 @@ class Game(Scene):
         self.sheet = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 6)
         self.background = pg.Surface(self.settings["size"])
         self.background.fill((0, 0, 0))
+        self.screen: pg.Surface = ...
         pg.draw.rect(self.background, (255, 255, 255), pg.Rect(10, 10, 10, self.settings["size"][1] - 20))
         pg.draw.rect(self.background, (255, 255, 255), pg.Rect(10, 10, self.settings["size"][0] - 20, 10))
         pg.draw.rect(self.background, (255, 255, 255), pg.Rect(self.settings["size"][0] - 20, 10, 10,
@@ -334,16 +374,19 @@ class Game(Scene):
         pg.draw.rect(self.background, (255, 255, 255), pg.Rect(self.settings["size"][0]//2 - 5, 10, 10,
                                                                self.settings["size"][1] - 20))
 
+        self.title = "pong"
+
     def draw(self):
-        screen = pg.Surface(self.settings["size"])
-        screen.blit(self.background, (0, 0))
-        self.players_group.draw(screen)
-        self.balls_group.draw(screen)
-        self.draw_text(screen)
-        return screen
+        self.screen.fill((0, 0, 0))
+        self.screen.blit(self.background, (0, 0))
+        self.players_group.draw(self.screen)
+        self.balls_group.draw(self.screen)
+        self.draw_text(self.screen)
+        return self.screen
 
     def initialize(self):
         self.sheet.generate()
+        self.screen = self.app.get_scene_screen()
 
     def draw_text(self, surface: pg.Surface):
         pl_score_len = len(str(self.player_score)) * self.sheet.scale * 4
@@ -412,11 +455,11 @@ class Game(Scene):
 
 class Menu(Scene):
     settings = {"size": (512, 256), "scale": (1024, 512), "title": "Pong Menu", "icon": None,
-                "events_filter": {pg.MOUSEBUTTONDOWN, pg.KEYDOWN}}
+                "events_filter": {pg.MOUSEBUTTONDOWN, pg.KEYDOWN, pg.KEYUP}}
 
     def __init__(self, app):
         super(Menu, self).__init__(app)
-        self.screen = pg.Surface(self.settings["size"])
+        self.screen: pg.Surface = ...
         self.font = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 8)
         self.small_font = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 4)
         self.title_rect: pg.Rect = pg.Rect(0, 0, 0, 0)
@@ -424,15 +467,16 @@ class Menu(Scene):
         self.tutorial_rect: pg.Rect = pg.Rect(0, 0, 0, 0)
         self.quit_rect: pg.Rect = pg.Rect(0, 0, 0, 0)
         self.option_selected: int = ...
-        self.tile = "pong"
+        self.title = "pong"
 
     def initialize(self):
         self.font.generate()
         self.small_font.generate()
+        self.screen = self.app.get_scene_screen()
 
     def draw(self) -> pg.Surface:
         self.screen.fill((0, 0, 0))
-        self.title_rect = self.render_text(self.screen, self.tile, (0, 0), 8, 0, self.font, True, 40)
+        self.title_rect = self.render_text(self.screen, self.title, (0, 0), 8, 0, self.font, True, 40)
         self.play_rect = self.render_text(self.screen, "play", (0, 75), 8, 0, self.small_font, True, 40)
         self.tutorial_rect = self.render_text(self.screen, "tutorial", (0, 125), 8, 0, self.small_font, True, 40)
         self.quit_rect = self.render_text(self.screen, "quit", (0, 175), 8, 0, self.small_font, True, 40)
@@ -461,7 +505,9 @@ class Menu(Scene):
 
     def pong_title_easter_egg(self):
         if rd.randint(0, 10) == 10:
-            self.tile = "pang"
+            self.title = "pang"
+            self.app.game.title = "pang"
+            self.app.tutorial.title = "pang"
             self.settings["title"] = "Pang Menu"
             self.app.game.settings["title"] = "Pang Game"
             self.app.update_screen()
@@ -470,44 +516,10 @@ class Menu(Scene):
         self.app.scene = self.app.game
 
     def tutorial(self):
-        pass
+        self.app.scene = self.app.tutorial
 
     def quit(self):
         self.app.done = True
-
-    def render_text(self, surface: pg.Surface, text: Union[List[str], str], pos: Tuple[int, int], right_offset: int,
-                    down_offset: int, font: Optional[sp_sh.SpriteSheet] = None, calculate_offset: bool = False,
-                    space_offset: int = 0, enter_offset: int = 0):
-        text += "\n"
-        font = font or self.font
-        cur_pos = pos
-        last_letter: Optional[pg.Surface] = None
-        biggest_width = 0
-        for letter in text:
-            if letter == "\n":
-                if biggest_width < cur_pos[0]:
-                    biggest_width = cur_pos[0]
-                if calculate_offset:
-                    cur_pos = pos[0], cur_pos[1] + (enter_offset if not last_letter else last_letter.get_height())\
-                              + down_offset
-                else:
-                    cur_pos = pos[0], cur_pos[1] + down_offset
-
-            elif letter == " ":
-                if calculate_offset:
-                    cur_pos = cur_pos[0] + (space_offset if not last_letter else last_letter.get_width()), cur_pos[1]
-                else:
-                    cur_pos = cur_pos[0] + right_offset, cur_pos[1]
-            else:
-                last_letter = font.get(letter)
-                surface.blit(last_letter, cur_pos)
-                if calculate_offset:
-                    cur_pos = cur_pos[0] + last_letter.get_width() + right_offset, cur_pos[1]
-                else:
-                    cur_pos = cur_pos[0] + right_offset, cur_pos[1]
-        width = biggest_width - pos[0]
-        height = cur_pos[1] - pos[1]
-        return pg.Rect(pos, (width, height))
 
     def handle_event(self, event):
         if event.type == pg.MOUSEBUTTONDOWN:
@@ -537,9 +549,95 @@ class Menu(Scene):
                     self.quit()
 
 
-class Tutorial(Scene):
-    pass
+class TutorialDialogue:
+    def __init__(self, game: "Tutorial"):
+        self.game = game
+        self.stage = "0"
+        self.dialogues: dict = {}
+        self.generate_dialogues()
+        self.dialogue_rect = None
+
+    def is_paused(self):
+        if not self.get_text():
+            self.check_stage()
+            return False
+        if self.stage in {"0", "1", "2.easy", "2.hard", "2.long"}:
+            return True
+
+    def generate_dialogues(self):
+        self.dialogues = {"0": f"welcome to {self.game.title}\n[press enter to continue]",
+                          "1": "to move, use keys 'w' and 's'", "2": "",
+                          "2.easy": "at the moment bot is easy\nlet make it harder",
+                          "2.hard": """looks like you have problems with winning
+pro tip: bot bounces easily balls flying straight
+and very turned""",
+                          "2.long": "nearly tie?, make it more interesting"}
+
+    def get_text(self) -> str:
+        return self.dialogues[self.stage]
+
+    def update_stage(self):
+        if self.stage == "0":
+            self.stage = "1"
+        elif self.stage == "1":
+            self.stage = "2"
+        self.game.screen.fill((0, 0, 0))
+
+    def check_stage(self):
+        if self.stage == "2":
+            pass
 
 
-class Settings(Scene):
-    pass
+class Tutorial(Game):
+    def __init__(self, app):
+        super().__init__(app)
+        self.font = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 2)
+        self.dialogue = TutorialDialogue(self)
+        self.screen: pg.Surface = ...
+
+    def initialize(self):
+        self.font.generate()
+        self.screen = self.app.get_scene_screen()
+        self.dialogue.generate_dialogues()
+
+    def update(self):
+        if self.dialogue.is_paused():
+            self.dialogue.generate_dialogues()
+        else:
+            super(Tutorial, self).update()
+
+    def draw(self):
+        if self.dialogue.is_paused():
+            self.dialogue.dialogue_rect = self.render_text(
+                surface=self.screen,
+                text=self.dialogue.get_text(),
+                pos=(0, 0),
+                right_offset=6, down_offset=2,
+                font=self.font,
+                calculate_offset=True,
+                space_offset=40
+            )
+            return self.screen
+        else:
+            return super(Tutorial, self).draw()
+
+    # noinspection PyCallingNonCallable
+    def handle_input(self, k_id: int):
+        if not self.dialogue.is_paused():
+            super(Tutorial, self).handle_input(k_id)
+        else:
+            pass
+
+    # noinspection PyCallingNonCallable
+    def handle_event(self, event):
+        if not self.dialogue.is_paused():
+            super(Tutorial, self).handle_event(event)
+        else:
+            with switch(event.type):
+                if case(pg.KEYDOWN):
+                    if event.key == pg.K_RETURN:
+                        self.dialogue.update_stage()
+                    elif event.key == pg.K_ESCAPE:
+                        self.screen.fill((rd.randint(0, 255), rd.randint(0, 255), rd.randint(0, 255)))
+                elif case(pg.MOUSEBUTTONDOWN):
+                    self.dialogue.update_stage()

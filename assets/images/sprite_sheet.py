@@ -21,6 +21,8 @@ class SpriteSheet:
         self.generated = True
 
     def get(self, name: str):
+        if name not in self.images:
+            self.generate()
         return self.images[name] if name in self.images else self.images[self.default]
 
     def get_subsurface(self, name: str) -> pg.Surface:
