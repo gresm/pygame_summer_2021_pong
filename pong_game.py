@@ -1,11 +1,13 @@
-from typing import Callable, List, Optional, Tuple, Union, Set, Dict, Any
+from typing import Callable, List, Optional, Tuple, Union, Dict, Any
 import pygame as pg
 
 from assets.source.switch_case import switch, case
 from assets.images import sprite_sheet as sp_sh
+from assets.sounds import sounds
 import random as rd
 import math as mh
 import logging
+import webbrowser as wb
 
 pg.display.init()
 
@@ -39,6 +41,7 @@ class App:
         self.done = True
         self.clock = pg.time.Clock()
         self.scene = self.menu
+        self.bgm = sounds.get_song("pong_bgm.wav")
 
     @property
     def scene(self) -> "Scene":
@@ -75,6 +78,7 @@ class App:
         self.scene.update()
 
     def run(self):
+        self.bgm.play(-1)
         self.done = False
         self._scene.initialize()
         while not self.done:
@@ -391,6 +395,8 @@ class Game(Scene):
     def initialize(self):
         self.sheet.generate()
         self.screen = self.app.get_scene_screen()
+        self.settings["icon"] = self.sheet.get("logo")
+        self.app.update_screen()
 
     def draw_text(self, surface: pg.Surface):
         pl_score_len = len(str(self.player_score)) * self.sheet.scale * 4
@@ -469,35 +475,59 @@ class Menu(Scene):
         self.screen: pg.Surface = ...
         self.font = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 8)
         self.small_font = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 4)
+        self.really_small_font = sp_sh.load_sprite_sheet("alphabet.png", "sprite_sheet.json", "box", 2)
         self.title_rect: pg.Rect = pg.Rect(0, 0, 0, 0)
         self.play_rect: pg.Rect = pg.Rect(0, 0, 0, 0)
         self.tutorial_rect: pg.Rect = pg.Rect(0, 0, 0, 0)
         self.quit_rect: pg.Rect = pg.Rect(0, 0, 0, 0)
+        self.pygame_rect: pg.Rect = pg.Rect(0, 0, 0, 0)
         self.option_selected: int = ...
         self.title = "pong"
+        self.description_open: bool = False
+        self.epilepsy_warning = False
 
     def initialize(self):
         self.font.generate()
         self.small_font.generate()
         self.screen = self.app.get_scene_screen()
+        self.settings["icon"] = self.font.get("logo")
+        self.app.update_screen()
 
     def draw(self) -> pg.Surface:
         self.screen.fill((0, 0, 0))
-        self.title_rect = self.render_text(self.screen, self.title, (0, 0), 8, 0, self.font, True, 40)
-        self.play_rect = self.render_text(self.screen, "play", (0, 75), 8, 0, self.small_font, True, 40)
-        self.tutorial_rect = self.render_text(self.screen, "tutorial", (0, 125), 8, 0, self.small_font, True, 40)
-        self.quit_rect = self.render_text(self.screen, "quit", (0, 175), 8, 0, self.small_font, True, 40)
-
-        if not isinstance(self.option_selected, int):
-            pass
-        elif self.option_selected == 0:
-            pg.draw.rect(self.screen, (255, 255, 255), self.play_rect, 5)
-        elif self.option_selected == 1:
-            pg.draw.rect(self.screen, (255, 255, 255), self.tutorial_rect, 5)
-        elif self.option_selected == 2:
-            pg.draw.rect(self.screen, (255, 255, 255), self.quit_rect, 5)
+        if self.description_open:
+            if self.epilepsy_warning:
+                self.screen.fill((rd.randint(0, 255), rd.randint(0, 255), rd.randint(0, 255)))
+            text = "welcome to pong, the game where you need\nto bounce ball and gain score.\n"\
+                   "\nrequirements:\n" \
+                   "- python 3.8 or higher\n" \
+                   "- pygame\n" \
+                   "\ndescription:\n" \
+                   "this game was made by me and 'mio coder'\nfor summer 2021 pygame game jam\n" \
+                   "theme was: remake old game with a twist\n" \
+                   "twist for this game:" \
+                   "it is possible that we hid\nsome 'secrets'\n" \
+                   "to this game"
+            self.render_text(self.screen, text, (0, 0), 6, 2, self.really_small_font, True, 40)
         else:
-            self.option_selected %= 3
+            self.title_rect = self.render_text(self.screen, self.title, (0, 0), 8, 0, self.font, True, 40)
+            self.play_rect = self.render_text(self.screen, "play", (0, 75), 8, 0, self.small_font, True, 40)
+            self.tutorial_rect = self.render_text(self.screen, "tutorial", (0, 125), 8, 0, self.small_font, True, 40)
+            self.quit_rect = self.render_text(self.screen, "quit", (0, 175), 8, 0, self.small_font, True, 40)
+
+            self.pygame_rect = self.render_text(self.screen, [*list("made with "), ":pygame:", *list("pygame")],
+                                                (325, 225), 2, 0, self.really_small_font, True, 40)
+
+            if not isinstance(self.option_selected, int):
+                pass
+            elif self.option_selected == 0:
+                pg.draw.rect(self.screen, (255, 255, 255), self.play_rect, 5)
+            elif self.option_selected == 1:
+                pg.draw.rect(self.screen, (255, 255, 255), self.tutorial_rect, 5)
+            elif self.option_selected == 2:
+                pg.draw.rect(self.screen, (255, 255, 255), self.quit_rect, 5)
+            else:
+                self.option_selected %= 3
 
         return self.screen
 
@@ -528,32 +558,49 @@ class Menu(Scene):
     def quit(self):
         self.app.done = True
 
-    def handle_event(self, event):
-        if event.type == pg.MOUSEBUTTONDOWN:
-            mouse_pos = self.app.get_mouse_pos()
-            if self.title_rect.collidepoint(mouse_pos):
-                self.pong_title_easter_egg()
-            if self.play_rect.collidepoint(mouse_pos):
-                self.play()
-            if self.tutorial_rect.collidepoint(mouse_pos):
-                self.tutorial()
-            if self.quit_rect.collidepoint(mouse_pos):
-                self.quit()
-        elif event.type == pg.KEYDOWN:
-            if not isinstance(self.option_selected, int):
-                self.option_selected = 0
-            if event.key == pg.K_DOWN or event.key == pg.K_s:
-                self.option_selected += 1
-            if event.key == pg.K_UP or event.key == pg.K_w:
-                self.option_selected -= 1
+    def about(self):
+        wb.open("pygame.org")
+        self.description_open = True
 
-            if event.key == pg.K_RETURN:
-                if self.option_selected == 0:
+    def handle_event(self, event):
+        if self.description_open:
+            if event.type == pg.MOUSEBUTTONDOWN:
+                self.description_open = False
+            elif event.type == pg.KEYDOWN:
+                if event.key == pg.K_ESCAPE:
+                    self.epilepsy_warning = True
+                else:
+                    self.description_open = False
+            elif event.type == pg.KEYUP:
+                self.epilepsy_warning = False
+        else:
+            if event.type == pg.MOUSEBUTTONDOWN:
+                mouse_pos = self.app.get_mouse_pos()
+                if self.title_rect.collidepoint(mouse_pos):
+                    self.pong_title_easter_egg()
+                if self.play_rect.collidepoint(mouse_pos):
                     self.play()
-                elif self.option_selected == 1:
+                if self.tutorial_rect.collidepoint(mouse_pos):
                     self.tutorial()
-                elif self.option_selected == 2:
+                if self.quit_rect.collidepoint(mouse_pos):
                     self.quit()
+                if self.pygame_rect.collidepoint(mouse_pos):
+                    self.about()
+            elif event.type == pg.KEYDOWN:
+                if not isinstance(self.option_selected, int):
+                    self.option_selected = 0
+                if event.key == pg.K_DOWN or event.key == pg.K_s:
+                    self.option_selected += 1
+                if event.key == pg.K_UP or event.key == pg.K_w:
+                    self.option_selected -= 1
+
+                if event.key == pg.K_RETURN:
+                    if self.option_selected == 0:
+                        self.play()
+                    elif self.option_selected == 1:
+                        self.tutorial()
+                    elif self.option_selected == 2:
+                        self.quit()
 
 
 class TutorialDialogue:
@@ -585,7 +632,7 @@ class TutorialDialogue:
                           "4.bad": "maybe try again?",
                           "return": "why did you return\nyou don't need tutorial anymore",
                           "return2": "i don't get it\nplay main game and enjoy your skills",
-                          "return3": "it's getting borring, stop it!",
+                          "return3": "it's getting boring, stop it!",
                           "return4": "ok you wanted this",
                           "close": ""}
 
@@ -679,6 +726,8 @@ class Tutorial(Game):
     def initialize(self):
         self.font.generate()
         self.screen = self.app.get_scene_screen()
+        self.settings["icon"] = self.sheet.get("logo")
+        self.app.update_screen()
 
     def control_bot(self):
         if self.dialogue.stage == "3.3":
@@ -702,7 +751,6 @@ class Tutorial(Game):
             super(Tutorial, self).control_bot()
 
     def update(self):
-        print(self.dialogue.stage)
         if self.dialogue.is_paused():
             self.dialogue.generate_dialogues()
         else:
