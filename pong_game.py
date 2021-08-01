@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Tuple, Union, Set
+from typing import Callable, List, Optional, Tuple, Union, Set, Dict, Any
 import pygame as pg
 
 from assets.source.switch_case import switch, case
@@ -427,13 +427,16 @@ class Game(Scene):
         self.balls_group.update(pads=self.players_group, goals=self.goals)
 
         # bot control
+        self.control_bot()
+
+        if self.scoring_elapse > 0:
+            self.scoring_elapse -= 1
+
+    def control_bot(self):
         if self.bot.hit_box.centery > self.ball.hit_box.centery:
             self.bot.control(1)
         if self.bot.hit_box.centery < self.ball.hit_box.centery:
             self.bot.control(2)
-
-        if self.scoring_elapse > 0:
-            self.scoring_elapse -= 1
 
     def handle_input(self, k_id: int):
         with switch(k_id):
@@ -563,7 +566,7 @@ class TutorialDialogue:
 
     def is_paused(self):
         self.check_stage()
-        if self.stage in {"0", "1", "2.get_easy", "2.get_hard", "2.get_long", "2.long_info"}:
+        if self.stage in {"0", "1", "2.get_easy", "2.get_hard", "2.get_long", "2.long_info", "4", "4.bad"}:
             self.game.screen.fill((0, 0, 0))
             return True
         return False
@@ -576,33 +579,52 @@ class TutorialDialogue:
                           "2.get_long": "nearly tie?\nmake it more interesting!",
                           "2.long_info": "now you can shoot[space], when bullet hits pallet\npallet can't move for a "
                                          "bit of time",
-                          "3.1": "", "3.2": "", "3.3": ""}
+                          "3.1": "", "3.2": "", "3.3": "",
+                          "4": "excellent, now you can play normal game",
+                          "4.bad": "maybe try again?",
+                          "return": "why did you return, you don't need tutorial anymore",
+                          "return2": "i don't get it, play main game and enjoy your skills",
+                          "return3": "it's getting borring, stop it!",
+                          "return4": "ok you wanted this",
+                          "close": ""}
 
     def get_text(self) -> str:
         return self.dialogues[self.stage]
 
     def update_stage(self):
         move_dict = {"0": "1", "1": "2", "2.get_easy": "3.1", "2.get_hard": "3.2", "2.get_long": "2.long_info",
-                     "2.long_info": "3.3"}
+                     "2.long_info": "3.3", "4": "back", "4.bad": "back1"}
         if self.stage in move_dict:
             self.stage = move_dict[self.stage]
 
     def check_stage(self):
         if self.stage == "2":
-            if self.game.player_score * 2 <= self.game.bot_score and self.game.bot_score >= 10:
+            if self.game.player_score * 2 <= self.game.bot_score and self.game.bot_score >= 5:
                 self.stage = "2.get_hard"
                 self.game.bot.up_force = pg.Vector2(y=-5)
                 self.game.bot.down_force = pg.Vector2(y=5)
                 self.game.bot.up_force = pg.Vector2(y=-5)
                 self.game.bot.down_force = pg.Vector2(y=5)
                 self.game.bot.control_delay = 2
-            elif self.game.player_score >= self.game.bot_score * 2 and self.game.player_score >= 15:
+            elif self.game.player_score >= self.game.bot_score * 2 and self.game.player_score >= 7:
                 self.stage = "2.get_easy"
                 self.game.bot.up_force = pg.Vector2(y=-5)
                 self.game.bot.down_force = pg.Vector2(y=5)
                 self.game.bot.control_delay = 2
-            elif self.game.bot_score >= 2:
+            elif self.game.bot_score >= 10:
                 self.stage = "2.get_long"
+        elif self.stage in {"3.1", "3.2", "3.3"}:
+            if self.game.player_score > 14:
+                if self.game.bot_score <= 10:
+                    self.stage = "4"
+                elif self.game.bot_score > 10:
+                    self.stage = "4.bad"
+        elif self.stage == "back1":
+            self.game.app.scene = self.game.app.menu
+            self.stage = "return"
+        elif self.stage == "back":
+            self.game.app.scene = self.game.app.menu
+            self.stage = "1"
 
 
 class Tutorial(Game):
@@ -617,7 +639,7 @@ class Tutorial(Game):
         self.bot_stunned = 0
         self.player_reload = 0
         self.bot_reload = 0
-        self.stun_time = 30
+        self.stun_time = 90
         self.reload_time = 30
         self.escape_message = False
 
@@ -634,13 +656,34 @@ class Tutorial(Game):
 
     def bot_shoot(self):
         if self.bot_reload == 0:
-            self.add_bullet(self.bot_bullets, self.player.rect)
+            self.add_bullet(self.bot_bullets, self.bot.rect)
             self.bot_reload += self.reload_time
 
     def initialize(self):
         self.font.generate()
         self.screen = self.app.get_scene_screen()
         self.dialogue.generate_dialogues()
+
+    def control_bot(self):
+        if self.dialogue.stage == "3.3":
+            if self.bot.rect.centerx - self.ball.hit_box.centerx <= 255:
+                if self.bot_stunned > 0:
+                    return
+                if self.bot.hit_box.centery > self.ball.hit_box.centery:
+                    self.bot.control(1)
+                if self.bot.hit_box.centery < self.ball.hit_box.centery:
+                    self.bot.control(2)
+            # offensive
+            else:
+                # defensive
+                if self.bot.hit_box.centery > self.player.hit_box.centery:
+                    self.bot.control(1)
+                    self.bot_shoot()
+                if self.bot.hit_box.centery < self.player.hit_box.centery:
+                    self.bot.control(2)
+                    self.bot_shoot()
+        else:
+            super(Tutorial, self).control_bot()
 
     def update(self):
         if self.dialogue.is_paused():
@@ -662,7 +705,7 @@ class Tutorial(Game):
                     self.player_stunned += self.stun_time
                     self.bot_bullets.pop(bt_b_index)
                     break
-                self.bot_bullets[bt_b_index].x += 5
+                self.bot_bullets[bt_b_index].x -= 5
                 if not self.max_bounds.contains(self.bot_bullets[bt_b_index]):
                     self.bot_bullets.pop(bt_b_index)
                     break
@@ -675,9 +718,15 @@ class Tutorial(Game):
 
             if self.player_stunned > 0:
                 self.player_stunned -= 1
+                self.player.image = self.pl_disabled_img
+            else:
+                self.player.image = self.pl_img
 
             if self.bot_stunned > 0:
                 self.bot_stunned -= 1
+                self.bot.image = self.pl_disabled_img
+            else:
+                self.bot.image = self.pl_img
 
     def draw(self):
         if self.dialogue.is_paused():
@@ -704,7 +753,11 @@ class Tutorial(Game):
     # noinspection PyCallingNonCallable
     def handle_input(self, k_id: int):
         if not self.dialogue.is_paused():
-            super(Tutorial, self).handle_input(k_id)
+            if self.dialogue.stage == "3.3":
+                if self.player_stunned == 0:
+                    super(Tutorial, self).handle_input(k_id)
+            else:
+                super(Tutorial, self).handle_input(k_id)
         else:
             pass
 
@@ -728,3 +781,16 @@ class Tutorial(Game):
                         self.escape_message = False
                 elif case(pg.MOUSEBUTTONDOWN):
                     self.dialogue.update_stage()
+
+
+class Settings:
+    def __init__(self):
+        self.settings: Dict[str, Any] = {}
+
+    def set(self, setting: str, data):
+        self.settings[setting] = data
+
+    def get(self, setting: str):
+        if setting not in self.settings:
+            return None
+        return self.settings[setting]
