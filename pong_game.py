@@ -566,7 +566,8 @@ class TutorialDialogue:
 
     def is_paused(self):
         self.check_stage()
-        if self.stage in {"0", "1", "2.get_easy", "2.get_hard", "2.get_long", "2.long_info", "4", "4.bad"}:
+        if self.stage in {"0", "1", "2.get_easy", "2.get_hard", "2.get_long", "2.long_info", "4", "4.bad", "back1",
+                          "return", "return2", "return3", "return4"}:
             self.game.screen.fill((0, 0, 0))
             return True
         return False
@@ -577,13 +578,13 @@ class TutorialDialogue:
                           "2.get_easy": "at the moment bot is easy\nlet make it harder",
                           "2.get_hard": "hard to win? ok i'll make bot slower",
                           "2.get_long": "nearly tie?\nmake it more interesting!",
-                          "2.long_info": "now you can shoot[space], when bullet hits pallet\npallet can't move for a "
+                          "2.long_info": "now you can shoot[space], when bullet\nhits pallet. pallet can't move for a "
                                          "bit of time",
                           "3.1": "", "3.2": "", "3.3": "",
                           "4": "excellent, now you can play normal game",
                           "4.bad": "maybe try again?",
-                          "return": "why did you return, you don't need tutorial anymore",
-                          "return2": "i don't get it, play main game and enjoy your skills",
+                          "return": "why did you return\nyou don't need tutorial anymore",
+                          "return2": "i don't get it\nplay main game and enjoy your skills",
                           "return3": "it's getting borring, stop it!",
                           "return4": "ok you wanted this",
                           "close": ""}
@@ -593,7 +594,9 @@ class TutorialDialogue:
 
     def update_stage(self):
         move_dict = {"0": "1", "1": "2", "2.get_easy": "3.1", "2.get_hard": "3.2", "2.get_long": "2.long_info",
-                     "2.long_info": "3.3", "4": "back", "4.bad": "back1"}
+                     "2.long_info": "3.3", "4": "back1", "4.bad": "back", "back1": "return", "return": "ret12",
+                     "ret12": "return2", "return2": "ret23", "ret23": "return3", "return3": "ret34", "ret34": "return4",
+                     "return4": "close"}
         if self.stage in move_dict:
             self.stage = move_dict[self.stage]
 
@@ -614,7 +617,7 @@ class TutorialDialogue:
             elif self.game.bot_score >= 10:
                 self.stage = "2.get_long"
         elif self.stage in {"3.1", "3.2", "3.3"}:
-            if self.game.player_score > 14:
+            if self.game.player_score > 2:
                 if self.game.bot_score <= 10:
                     self.stage = "4"
                 elif self.game.bot_score > 10:
@@ -624,7 +627,16 @@ class TutorialDialogue:
             self.stage = "return"
         elif self.stage == "back":
             self.game.app.scene = self.game.app.menu
+            self.game.player_score = 0
+            self.game.bot_score = 0
             self.stage = "1"
+        elif self.stage == "close":
+            import sys
+            sys.stdout.close()
+            print("Did you want this?")
+        elif self.stage in {"ret12", "ret23", "ret34"}:
+            self.game.app.scene = self.game.app.menu
+            self.update_stage()
 
 
 class Tutorial(Game):
@@ -642,6 +654,11 @@ class Tutorial(Game):
         self.stun_time = 90
         self.reload_time = 30
         self.escape_message = False
+        self.dialogue.generate_dialogues()
+
+        # uncomment for auto tutorial
+        # self.player_score = 3
+        # self.bot_score = 7
 
     @staticmethod
     def add_bullet(set_to_add: List[pg.Rect], thrower: pg.Rect):
@@ -662,7 +679,6 @@ class Tutorial(Game):
     def initialize(self):
         self.font.generate()
         self.screen = self.app.get_scene_screen()
-        self.dialogue.generate_dialogues()
 
     def control_bot(self):
         if self.dialogue.stage == "3.3":
@@ -686,6 +702,7 @@ class Tutorial(Game):
             super(Tutorial, self).control_bot()
 
     def update(self):
+        print(self.dialogue.stage)
         if self.dialogue.is_paused():
             self.dialogue.generate_dialogues()
         else:
