@@ -336,7 +336,7 @@ class Scene:
 
 class Game(Scene):
     settings = {"size": (512, 256), "scale": (1024, 512), "title": "Pong Game", "icon": None,
-                "events_filter": {pg.MOUSEBUTTONDOWN, pg.KEYDOWN}}
+                "events_filter": {pg.MOUSEBUTTONDOWN, pg.KEYDOWN, pg.KEYUP}}
 
     def __init__(self, app: App):
         super(Game, self).__init__(app)
@@ -619,6 +619,7 @@ class Tutorial(Game):
         self.bot_reload = 0
         self.stun_time = 30
         self.reload_time = 30
+        self.escape_message = False
 
     @staticmethod
     def add_bullet(set_to_add: List[pg.Rect], thrower: pg.Rect):
@@ -630,6 +631,11 @@ class Tutorial(Game):
         if self.player_reload == 0:
             self.add_bullet(self.player_bullets, self.player.rect)
             self.player_reload += self.reload_time
+
+    def bot_shoot(self):
+        if self.bot_reload == 0:
+            self.add_bullet(self.bot_bullets, self.player.rect)
+            self.bot_reload += self.reload_time
 
     def initialize(self):
         self.font.generate()
@@ -644,6 +650,8 @@ class Tutorial(Game):
             for pl_b_index in range(len(self.player_bullets)):
                 if self.bot.hit_box.colliderect(self.player_bullets[pl_b_index]):
                     self.bot_stunned += self.stun_time
+                    self.player_bullets.pop(pl_b_index)
+                    break
                 self.player_bullets[pl_b_index].x += 5
                 if not self.max_bounds.contains(self.player_bullets[pl_b_index]):
                     self.player_bullets.pop(pl_b_index)
@@ -652,6 +660,8 @@ class Tutorial(Game):
             for bt_b_index in range(len(self.bot_bullets)):
                 if self.player.hit_box.colliderect(self.bot_bullets[bt_b_index]):
                     self.player_stunned += self.stun_time
+                    self.bot_bullets.pop(bt_b_index)
+                    break
                 self.bot_bullets[bt_b_index].x += 5
                 if not self.max_bounds.contains(self.bot_bullets[bt_b_index]):
                     self.bot_bullets.pop(bt_b_index)
@@ -663,8 +673,16 @@ class Tutorial(Game):
             if self.bot_reload > 0:
                 self.bot_reload -= 1
 
+            if self.player_stunned > 0:
+                self.player_stunned -= 1
+
+            if self.bot_stunned > 0:
+                self.bot_stunned -= 1
+
     def draw(self):
         if self.dialogue.is_paused():
+            if self.escape_message:
+                self.screen.fill((rd.randint(0, 255), rd.randint(0, 255), rd.randint(0, 255)))
             self.dialogue.dialogue_rect = self.render_text(
                 surface=self.screen,
                 text=self.dialogue.get_text(),
@@ -704,6 +722,9 @@ class Tutorial(Game):
                     if event.key == pg.K_RETURN:
                         self.dialogue.update_stage()
                     elif event.key == pg.K_ESCAPE:
-                        self.screen.fill((rd.randint(0, 255), rd.randint(0, 255), rd.randint(0, 255)))
+                        self.escape_message = True
+                elif case(pg.KEYUP):
+                    if event.key == pg.K_ESCAPE:
+                        self.escape_message = False
                 elif case(pg.MOUSEBUTTONDOWN):
                     self.dialogue.update_stage()
