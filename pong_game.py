@@ -97,10 +97,18 @@ class App:
                 self.scene.handle_event(event)
 
     def handle_input(self):
+        self.handle_mouse_press()
         keys_pressed = pg.key.get_pressed()
         for keycode in self.all_keycodes:
             if keys_pressed[keycode]:
                 self.scene.handle_input(keycode)
+
+    def handle_mouse_press(self):
+        pressed = pg.mouse.get_pressed(3)
+        mouse_pos = self.get_mouse_pos()
+        for key in range(3):
+            if pressed[key]:
+                self.scene.handle_mouse_press(key, mouse_pos)
 
     def get_mouse_pos(self):
         return pg.mouse.get_pos()[0] // self.scene_scale[0], pg.mouse.get_pos()[1] // self.scene_scale[1]
@@ -292,6 +300,9 @@ class Scene:
     def handle_input(self, k_id: int):
         pass
 
+    def handle_mouse_press(self, key: int, pos: Tuple[int, int]):
+        pass
+
     def handle_event(self, event):
         pass
 
@@ -382,6 +393,13 @@ class Game(Scene):
         pg.draw.rect(self.background, (255, 255, 255), pg.Rect(self.settings["size"][0] // 2 - 5, 10, 10,
                                                                self.settings["size"][1] - 20))
 
+        self.pl_score_rect = pg.Rect(256, 30, 0, 0)
+        self.bt_score_rect = pg.Rect(256, 30, 0, 0)
+
+        self.left_side = pg.Rect(20, 20, self.settings["size"][0] // 2 - 25, self.settings["size"][1] - 40)
+        self.right_side = pg.Rect(self.settings["size"][0] // 2 + 5, 20, self.settings["size"][0] // 2 - 25,
+                                  self.settings["size"][1] - 40)
+
         self.title = "pong"
 
     def draw(self):
@@ -398,19 +416,49 @@ class Game(Scene):
         self.settings["icon"] = self.sheet.get("logo")
         self.app.update_screen()
 
-    def draw_text(self, surface: pg.Surface):
-        pl_score_len = len(str(self.player_score)) * self.sheet.scale * 4
-        # noinspection PyUnusedLocal
-        bot_score_len = len(str(self.bot_score)) * self.sheet.scale * 4
-        start_x = 256 - pl_score_len - 30
-        for letter in str(self.player_score):
-            surface.blit(self.sheet.get(letter), (start_x, 30))
-            start_x += self.sheet.scale * 5
+        self.generate_score_pos()
 
-        start_x = 256 + 30
-        for letter in str(self.bot_score):
-            surface.blit(self.sheet.get(letter), (start_x, 30))
-            start_x += self.sheet.scale * 5
+    def generate_score_pos(self, reset_pos: Optional[Tuple[int, int]] = None,
+                           reset_pos2: Optional[Tuple[int, int]] = None, back: bool = True):
+        reset_pos = reset_pos if reset_pos else (256, 30) if back else self.pl_score_rect.topleft
+        reset_pos2 = reset_pos2 if reset_pos2 else (256, 30) if back else self.bt_score_rect.topleft
+
+        self.pl_score_rect.topleft = reset_pos
+        self.pl_score_rect = self.render_text(self.screen, str(self.player_score), self.pl_score_rect.topleft, 8, 0,
+                                              self.sheet, True)
+
+        if back:
+            # noinspection SpellCheckingInspection
+            self.pl_score_rect.topleft = (self.pl_score_rect.x - self.pl_score_rect.w - 30, self.pl_score_rect.y)
+
+        self.bt_score_rect.topleft = reset_pos2
+        self.bt_score_rect = self.render_text(self.screen, str(self.player_score), self.bt_score_rect.topleft, 8, 0,
+                                              self.sheet, True)
+
+        if back:
+            # noinspection SpellCheckingInspection
+            self.bt_score_rect.topleft = (self.bt_score_rect.x + 38, self.bt_score_rect.y)
+
+    def draw_text(self, surface: pg.Surface):
+        self.render_text(surface, str(self.player_score), self.pl_score_rect.topleft, 8, 0,
+                         self.sheet, True)
+
+        self.render_text(surface, str(self.bot_score), self.bt_score_rect.topleft, 8, 0,
+                         self.sheet, True)
+        return
+
+        # pl_score_len = len(str(self.player_score)) * self.sheet.scale * 4
+        # # noinspection PyUnusedLocal
+        # bot_score_len = len(str(self.bot_score)) * self.sheet.scale * 4
+        # start_x = 256 - pl_score_len - 30
+        # for letter in str(self.player_score):
+        #     surface.blit(self.sheet.get(letter), (start_x, 30))
+        #     start_x += self.sheet.scale * 5
+        #
+        # start_x = 256 + 30
+        # for letter in str(self.bot_score):
+        #     surface.blit(self.sheet.get(letter), (start_x, 30))
+        #     start_x += self.sheet.scale * 5
 
     def respawn_ball(self):
         if isinstance(self.ball, Ball):
@@ -438,6 +486,9 @@ class Game(Scene):
         if self.scoring_elapse > 0:
             self.scoring_elapse -= 1
 
+        if self.left_side.contains(self.bt_score_rect) and self.right_side.contains(self.pl_score_rect):
+            raise RuntimeError("Do not fake your score!")
+
     def control_bot(self):
         if self.bot.hit_box.centery > self.ball.hit_box.centery:
             self.bot.control(1)
@@ -452,6 +503,19 @@ class Game(Scene):
             # noinspection PyCallingNonCallable
             if case(pg.K_s):
                 self.player.control(2)
+
+    def handle_mouse_press(self, key: int, pos: Tuple[int, int]):
+        if key == 0:
+            if self.pl_score_rect.collidepoint(pos):
+                # noinspection PyTypeChecker
+                fix_pos: Tuple[int, int] = (*(pg.Vector2(pos) - pg.Vector2(self.pl_score_rect.center) +
+                                              pg.Vector2(self.pl_score_rect.topleft)),)
+                self.generate_score_pos(fix_pos, back=False)
+            if self.bt_score_rect.collidepoint(pos):
+                # noinspection PyTypeChecker
+                fix_pos: Tuple[int, int] = (*(pg.Vector2(pos) - pg.Vector2(self.bt_score_rect.center) +
+                                              pg.Vector2(self.bt_score_rect.topleft)),)
+                self.generate_score_pos(reset_pos2=fix_pos, back=False)
 
     def left_collide(self):
         if self.scoring_elapse:
@@ -498,7 +562,7 @@ class Menu(Scene):
         if self.description_open:
             if self.epilepsy_warning:
                 self.screen.fill((rd.randint(0, 255), rd.randint(0, 255), rd.randint(0, 255)))
-            text = "welcome to pong, the game where you need\nto bounce ball and gain score.\n"\
+            text = "welcome to pong, the game where you need\nto bounce ball and gain score.\n" \
                    "\nrequirements:\n" \
                    "- python 3.8 or higher\n" \
                    "- pygame\n" \
@@ -510,6 +574,8 @@ class Menu(Scene):
                    "to this game"
             self.render_text(self.screen, text, (0, 0), 6, 2, self.really_small_font, True, 40)
         else:
+            if self.epilepsy_warning:
+                self.screen.fill((rd.randint(0, 255), rd.randint(0, 255), rd.randint(0, 255)))
             self.title_rect = self.render_text(self.screen, self.title, (0, 0), 8, 0, self.font, True, 40)
             self.play_rect = self.render_text(self.screen, "play", (0, 75), 8, 0, self.small_font, True, 40)
             self.tutorial_rect = self.render_text(self.screen, "tutorial", (0, 125), 8, 0, self.small_font, True, 40)
@@ -541,7 +607,7 @@ class Menu(Scene):
             self.option_selected = 2
 
     def pong_title_easter_egg(self):
-        if rd.randint(0, 10) == 10:
+        if rd.randint(0, 5) == 5:
             self.title = "pang"
             self.app.game.title = "pang"
             self.app.tutorial.title = "pang"
@@ -572,7 +638,8 @@ class Menu(Scene):
                 else:
                     self.description_open = False
             elif event.type == pg.KEYUP:
-                self.epilepsy_warning = False
+                if event.key == pg.K_ESCAPE:
+                    self.epilepsy_warning = False
         else:
             if event.type == pg.MOUSEBUTTONDOWN:
                 mouse_pos = self.app.get_mouse_pos()
@@ -601,6 +668,12 @@ class Menu(Scene):
                         self.tutorial()
                     elif self.option_selected == 2:
                         self.quit()
+
+                if event.key == pg.K_ESCAPE:
+                    self.epilepsy_warning = True
+            elif event.type == pg.KEYUP:
+                if event.key == pg.K_ESCAPE:
+                    self.epilepsy_warning = False
 
 
 class TutorialDialogue:
@@ -724,6 +797,7 @@ class Tutorial(Game):
             self.bot_reload += self.reload_time
 
     def initialize(self):
+        super(Tutorial, self).initialize()
         self.font.generate()
         self.screen = self.app.get_scene_screen()
         self.settings["icon"] = self.sheet.get("logo")
@@ -825,6 +899,9 @@ class Tutorial(Game):
                 super(Tutorial, self).handle_input(k_id)
         else:
             pass
+
+    def handle_mouse_press(self, key: int, pos: Tuple[int, int]):
+        super(Tutorial, self).handle_mouse_press(key, pos)
 
     # noinspection PyCallingNonCallable
     def handle_event(self, event):
