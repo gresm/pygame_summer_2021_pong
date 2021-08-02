@@ -625,7 +625,7 @@ class TutorialDialogue:
                           "2.get_easy": "at the moment bot is easy\nlet make it harder",
                           "2.get_hard": "hard to win? ok i'll make bot slower",
                           "2.get_long": "nearly tie?\nmake it more interesting!",
-                          "2.long_info": "now you can shoot[space], when bullet\nhits pallet. pallet can't move for a "
+                          "2.long_info": "now you can shoot[space], when bullet\nhits pallet. pallet can't move for a\n"
                                          "bit of time",
                           "3.1": "", "3.2": "", "3.3": "",
                           "4": "excellent, now you can play normal game",
@@ -664,7 +664,7 @@ class TutorialDialogue:
             elif self.game.bot_score >= 10:
                 self.stage = "2.get_long"
         elif self.stage in {"3.1", "3.2", "3.3"}:
-            if self.game.player_score > 2:
+            if self.game.player_score > 10:
                 if self.game.bot_score <= 10:
                     self.stage = "4"
                 elif self.game.bot_score > 10:
